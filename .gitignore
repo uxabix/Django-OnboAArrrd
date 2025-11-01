@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.sqlite3
+
+# Environment
+.env
+venv/
+.venv/
+.env.local
+*.log
+
+# Django
+staticfiles/
+media/
+
+# VSCode / PyCharm
+.idea/
+.vscode/
+
+# Byte-compiled / cache
+*.egg-info/
+*.egg
+*.manifest
+*.spec
