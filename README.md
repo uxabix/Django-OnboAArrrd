@@ -21,6 +21,7 @@ docker compose up --build
 ```
 Available services:
 - Django + Channels: http://localhost:8000
+- Admin panel: http://localhost:8000/admin
 - PostgreSQL: http://localhost:5050/
 
 ### 4. Apply migrations and create a superuser
