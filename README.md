@@ -9,6 +9,43 @@ An onboarding platform designed to help new employees integrate smoothly into a 
 git clone https://devtools.wi.pb.edu.pl/bitbucket/scm/th2025gr1/onboaarrrd.git
 cd OnboAArrrd
 ```
+### 1.5. Gitconfig
+If you want to automatically push to both **Bitbucket** and **GitHub**,  
+you need to update your local `.git/config` file.
+
+#### 1. Add GitHub as an additional push target
+You can either edit `.git/config` manually or use the command line.
+
+Option A – Command line
+```bash
+git remote set-url --add --push origin https://devtools.wi.pb.edu.pl/bitbucket/scm/th2025gr1/onboaarrrd.git
+git remote set-url --add --push origin https://github.com/uxabix/Django-OnboAArrrd.git
+```
+
+Option B – Manual edit
+Open `.git/config` and make sure the `[remote "origin"]` section looks like this:
+```ini
+[remote "origin"]
+    url = https://bitbucket.org/your-university/onboaarrd.git
+    fetch = +refs/heads/*:refs/remotes/origin/*
+    pushurl = https://devtools.wi.pb.edu.pl/bitbucket/scm/th2025gr1/onboaarrrd.git
+    pushurl = https://github.com/uxabix/Django-OnboAArrrd.git
+```
+
+#### 2. Verify
+Run:
+```bash
+git remote show origin
+```
+You should see **two Push URLs** — one for Bitbucket and one for GitHub.
+
+Now, every time you push:
+```bash
+git push --all
+```
+Git will automatically send all branches and commits to **both repositories** 🎯
+
+
 ### 2. Configure environment variables
 Copy .env.example to .env:
 ```bash
