@@ -3,6 +3,14 @@ from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, Permis
 from django.db import models
 from django.utils import timezone
 
+class Roles(models.Model):
+    role_id = models.IntegerField(primary_key=True)
+    name = models.CharField(max_length=60)
+    description = models.TextField()
+
+    def __str__(self):
+        return self.name
+
 class CustomUserManager(BaseUserManager):
     def create_user(self, email, password=None, **extra_fields):
         """
@@ -33,6 +41,7 @@ class CustomUserManager(BaseUserManager):
 
 
 class CustomUser(AbstractBaseUser, PermissionsMixin):
+    role_id = models.ForeignKey(Roles, on_delete=models.CASCADE)
     first_name = models.CharField(max_length=150, blank=True)
     last_name = models.CharField(max_length=150, blank=True)
     email = models.EmailField(unique=True)
