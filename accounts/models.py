@@ -10,6 +10,10 @@ class Roles(models.Model):
 
     def __str__(self):
         return self.name
+    
+    class Meta:
+        verbose_name = "Role"
+        verbose_name_plural = "Roles"
 
 class CustomUserManager(BaseUserManager):
     def create_user(self, email, password=None, **extra_fields):
@@ -41,7 +45,7 @@ class CustomUserManager(BaseUserManager):
 
 
 class CustomUser(AbstractBaseUser, PermissionsMixin):
-    role_id = models.ForeignKey(Roles, on_delete=models.CASCADE)
+    role_id = models.ForeignKey(Roles, on_delete=models.CASCADE, blank=True, null=True)
     first_name = models.CharField(max_length=150, blank=True)
     last_name = models.CharField(max_length=150, blank=True)
     email = models.EmailField(unique=True)
