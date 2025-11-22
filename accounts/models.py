@@ -4,7 +4,7 @@ from django.db import models
 from django.utils import timezone
 
 class Roles(models.Model):
-    role_id = models.IntegerField(primary_key=True)
+    role_id = models.BigAutoField(primary_key=True)
     name = models.CharField(max_length=60)
     description = models.TextField()
 
@@ -45,14 +45,24 @@ class CustomUserManager(BaseUserManager):
 
 
 class CustomUser(AbstractBaseUser, PermissionsMixin):
+    mentor_id = models.ForeignKey('self', null=True, blank = True, on_delete=models.SET_NULL, related_name="mentor")
     role_id = models.ForeignKey(Roles, on_delete=models.CASCADE, blank=True, null=True)
+
+    class UserStatus(models.TextChoices):
+        ACTIVE = "active"
+        INACTIVE = "inactive"
+
+    status_id = models.CharField(
+        max_length=20,
+        choices=UserStatus.choices,
+        default=UserStatus.INACTIVE,
+    )
     first_name = models.CharField(max_length=150, blank=True)
     last_name = models.CharField(max_length=150, blank=True)
     email = models.EmailField(unique=True)
     # Możesz usunąć password_hash jeśli nie potrzebujesz redundancji. Jeśli zostaje, przechowuj hash (nie surowe).
     password_hash = models.CharField(max_length=255, blank=True)
     created_at = models.DateTimeField(default=timezone.now)
-    status = models.CharField(max_length=50, default="inactive")
 
     # wymagane przez Django
     is_active = models.BooleanField(default=True)
