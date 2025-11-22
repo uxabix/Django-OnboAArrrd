@@ -2,6 +2,18 @@
 
 An onboarding platform designed to help new employees integrate smoothly into a company, built with **Django**, **PostgreSQL**, and **Docker**.  
 
+## 🐘 Troubleshooting: Migrations Not Applying
+
+If your migrations fail to apply or you encounter inconsistent migration history, you may need to reset the PostgreSQL database completely.
+To do this, remove the entire Postgres Docker volume (⚠️ this will delete all database data 🙂):
+```bash
+docker compose down -v
+docker compose up -d
+```
+After bringing the containers back up, re-run your migrations:
+```bash
+docker compose exec web python manage.py migrate
+```
 ---
 ## Setup
 ### 1. Clone the repository
