@@ -1,10 +1,6 @@
 import random
-from django.utils import timezone
-from faker import Faker
 from accounts.models import CustomUser, Roles
 from django.contrib.auth.models import Group
-
-fake = Faker()
 
 def run(count=10, group: Group = None):
     roles = list(Roles.objects.all())
@@ -14,12 +10,14 @@ def run(count=10, group: Group = None):
 
     users = []
 
-    # Создаем пользователей
-    for _ in range(count):
+    first_names = ["Alice", "Bob", "Charlie", "Diana", "Eve", "Frank", "Grace", "Hank", "Ivy", "Jack"]
+    last_names = ["Smith", "Johnson", "Williams", "Brown", "Jones", "Miller", "Davis", "Garcia", "Taylor", "Anderson"]
+
+    for i in range(count):
         role = random.choice(roles)
-        first_name = fake.first_name()
-        last_name = fake.last_name()
-        email = fake.unique.email()
+        first_name = first_names[i % len(first_names)]
+        last_name = last_names[i % len(last_names)]
+        email = f"{first_name.lower()}.{last_name.lower()}{i}@test.com"
 
         user = CustomUser.objects.create_user(
             email=email,
@@ -33,7 +31,6 @@ def run(count=10, group: Group = None):
         if group:
             user.groups.add(group)
 
-    # Назначаем случайных менторов (только для пользователей не-Admin)
     mentors = [u for u in users if u.role_id.name.lower() == "mentor"]
     students = [u for u in users if u.role_id.name.lower() == "student"]
 
