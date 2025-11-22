@@ -2,6 +2,8 @@
 
 An onboarding platform designed to help new employees integrate smoothly into a company, built with **Django**, **PostgreSQL**, and **Docker**.  
 
+--- 
+
 ## 🐘 Troubleshooting: Migrations Not Applying
 
 If your migrations fail to apply or you encounter inconsistent migration history, you may need to reset the PostgreSQL database completely.
@@ -171,6 +173,28 @@ Generate reports and grades:
 ```bash
 docker compose exec web python manage.py seed reports user_grades --count 20
 ```
+---
+### Clearing Test Data
+
+You can remove all data related to users in the `TestUsers` group using the `clear_test_data` management command. This is useful if you want to reset the test data without affecting real users.
+
+Run the command:
+
+python manage.py clear_test_data
+
+This will delete:
+
+- All `CustomUser` instances in the `TestUsers` group  
+- Related onboarding data, including:
+  - `User_badges`
+  - `User_paths`
+  - `User_tasks`
+  - `Task_status`
+  - `Reports`
+  - `User_grade`
+
+The command uses a database transaction to ensure all related data is removed safely.
+
 ---
 
 ## 4. Notes
