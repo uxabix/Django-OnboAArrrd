@@ -24,19 +24,20 @@ def run(count=10, group: Group = None):
             password="Test1234!",
             first_name=first_name,
             last_name=last_name,
-            role_id=role
+            role=role
         )
         users.append(user)
 
         if group:
             user.groups.add(group)
 
-    mentors = [u for u in users if u.role_id.name.lower() == "mentor"]
-    students = [u for u in users if u.role_id.name.lower() == "student"]
+    # Назначаем менторов студентам
+    mentors = [u for u in users if u.role and u.role.name.lower() == "mentor"]
+    students = [u for u in users if u.role and u.role.name.lower() == "student"]
 
     for student in students:
         if mentors:
-            student.mentor_id = random.choice(mentors)
+            student.mentor = random.choice(mentors)
             student.save()
 
     print(f"Created {len(users)} users.")

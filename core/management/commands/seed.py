@@ -18,14 +18,14 @@ SEEDERS_ORDER = [
 SEEDERS = {
     "roles": "accounts.seeds.roles_seed",
     "users": "accounts.seeds.users_seed",
-    "badges": "oboarding.seeds.badges_seed",
-    "paths": "oboarding.seeds.competency_paths_seed",
-    "task_types": "oboarding.seeds.tasks_seed",
-    "tasks": "oboarding.seeds.tasks_seed",
-    "quiz": "oboarding.seeds.quiz_seed",
-    "user_paths": "oboarding.seeds.user_paths_seed",
-    "user_tasks": "oboarding.seeds.user_tasks_seed",
-    "reports": "oboarding.seeds.reports_seed",
+    "badges": "onboarding.seeds.badges_seed",
+    "paths": "onboarding.seeds.competency_paths_seed",
+    "task_types": "onboarding.seeds.tasks_seed",
+    "tasks": "onboarding.seeds.tasks_seed",
+    "quiz": "onboarding.seeds.quiz_seed",
+    "user_paths": "onboarding.seeds.user_paths_seed",
+    "user_tasks": "onboarding.seeds.user_tasks_seed",
+    "reports": "onboarding.seeds.reports_seed",
 }
 
 class Command(BaseCommand):
