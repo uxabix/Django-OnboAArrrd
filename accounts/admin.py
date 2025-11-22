@@ -7,8 +7,8 @@ from .models import CustomUser, Roles
 # ------------------------
 class CustomUserAdmin(UserAdmin):
     model = CustomUser
-    list_display = ('email', 'first_name', 'last_name', 'get_mentor', 'role_id', 'is_staff', 'is_active', 'status_id')
-    list_filter = ('is_staff', 'is_active', 'status_id', 'role_id')
+    list_display = ('email', 'first_name', 'last_name', 'get_mentor', 'role_id', 'is_staff', 'is_active', 'status')
+    list_filter = ('is_staff', 'is_active', 'status', 'role_id')
     
     fieldsets = (
         (None, {'fields': ('email', 'password', 'role_id', 'mentor_id')}),
