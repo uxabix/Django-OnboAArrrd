@@ -22,8 +22,9 @@ from django.conf.urls.static import static
 
 
 urlpatterns = [
-    path("admin/", admin.site.urls),
-    path('', include('accounts.urls')),  # teraz home będzie z accounts.home
+    path('accounts/', include('django.contrib.auth.urls')),
+    path('', include('accounts.urls')),
+    path('', include('onboarding.urls')),  # <--- DOŁĄCZENIE APP ONBOARDING
 ]
 
 # Add static files

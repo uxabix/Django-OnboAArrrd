@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <title>Witaj</title>
+</head>
+<body>
+  <h1>Witaj, {{ user.first_name }}!</h1>
+  {% if not user.first_name %}
+    <p>Witaj!</p>
+  {% endif %}
+
+    <p>
+      <a href="{% url 'onboarding:user_tasks_list' %}" class="btn">Moje zadania</a>
+    </p>
+  <p><a href="{% url 'logout' %}">Wyloguj</a></p>
+  <p><a href="/">Strona główna</a></p>
+</body>
+</html>

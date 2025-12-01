@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <title>Moje zadania</title>
+</head>
+<body>
+    <h1>Moje zadania</h1>
+
+    {% if tasks %}
+        <ul>
+        {% for utask in tasks %}
+            <li>{{ utask.task_id.title }} — Deadline: {{ utask.deadline }}</li>
+        {% endfor %}
+        </ul>
+    {% else %}
+        <p>Brak przypisanych zadań.</p>
+    {% endif %}
+
+    <p><a href="{% url 'accounts:home' %}">Powrót do strony głównej</a></p>
+</body>
+</html>
