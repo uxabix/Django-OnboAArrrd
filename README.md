@@ -121,7 +121,7 @@ python manage.py seed <seeder_name> [--count <number>]
 
 To run multiple seeders sequentially:
 
-python manage.py seed roles users badges competency_paths tasks quizzes user_paths user_tasks task_status reports user_grades --count 10
+`python manage.py seed roles users badges competency_paths tasks quizzes user_paths user_tasks task_status reports user_grades --count 10`
 
 ---
 
