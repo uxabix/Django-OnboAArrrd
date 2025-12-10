@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <title>Moje ścieżki i zadania</title>
+</head>
+<body>
+    <h1>Moje ścieżki i zadania</h1>
+
+    {% if paths_with_tasks %}
+        <ul>
+        {% for item in paths_with_tasks %}
+            <li>
+                <strong>Ścieżka:</strong> {{ item.user_path.path.name }}: {{item.user_path.path.description|default_if_none:""}}
+                <ul>
+                    {% if item.tasks %}
+                        {% for task in item.tasks %}
+                            <li>{{ task.title }}{% if task.description %}: {{ task.description }}{% endif %}</li>
+                        {% endfor %}
+                    {% else %}
+                        <li>Brak przypisanych zadań.</li>
+                    {% endif %}
+                </ul>
+            </li>
+        {% endfor %}
+        </ul>
+    {% else %}
+        <p>Nie masz przypisanych żadnych ścieżek.</p>
+    {% endif %}
+
+    <p><a href="{% url 'accounts:home' %}">Powrót do strony głównej</a></p>
+</body>
+</html>
