@@ -1,4 +1,5 @@
 from django.db import models
+from django.utils import timezone
 from django.contrib.auth import get_user_model
 
 CustomUser = get_user_model()
@@ -17,7 +18,7 @@ class Messages(models.Model):
     )
 
     text = models.TextField()
-    sent_at = models.DateTimeField(auto_now_add=True)
+    sent_at = models.DateTimeField(default=timezone.now)
 
     class Meta:
         ordering = ['sent_at']
