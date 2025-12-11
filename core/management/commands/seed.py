@@ -13,6 +13,7 @@ SEEDERS_ORDER = [
     "user_paths",
     "user_tasks",
     "reports",
+    "messages"
 ]
 
 SEEDERS = {
@@ -26,6 +27,7 @@ SEEDERS = {
     "user_paths": "onboarding.seeds.user_paths_seed",
     "user_tasks": "onboarding.seeds.user_tasks_seed",
     "reports": "onboarding.seeds.reports_seed",
+    "messages": "chat.seeds.messages_seed",
 }
 
 class Command(BaseCommand):

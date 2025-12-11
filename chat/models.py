@@ -3,7 +3,7 @@ from django.contrib.auth import get_user_model
 
 CustomUser = get_user_model()
 # Create your models here.
-class Message(models.Model):
+class Messages(models.Model):
     message_id = models.BigAutoField(primary_key=True)
     sender = models.ForeignKey(
         CustomUser,

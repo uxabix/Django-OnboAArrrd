@@ -121,7 +121,7 @@ python manage.py seed <seeder_name> [--count <number>]
 
 To run multiple seeders sequentially:
 
-`python manage.py seed roles users badges competency_paths tasks quizzes user_paths user_tasks task_status reports user_grades --count 10`
+`python manage.py seed roles users badges competency_paths tasks quizzes user_paths user_tasks task_status reports user_grades messages --count 10`
 
 ---
 
@@ -144,6 +144,10 @@ To run multiple seeders sequentially:
 - `task_status` – creates multiple statuses for each user task.  
 - `reports` – generates reports between users.  
 - `user_grades` – assigns grades to completed tasks.
+
+### **Chat Application**
+
+- `messages` – creates messages between the user and his mentor in the system.
 
 ---
 
