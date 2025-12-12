@@ -13,6 +13,16 @@
     <p>
       <a href="{% url 'onboarding:user_tasks_list' %}" class="btn">Moje zadania</a>
     </p>
+    <p>
+      <a href="{% url 'onboarding:user_competency_paths_with_tasks' %}" class="btn">Moje ścieżki kompetencji</a>
+    </p>
+    <p>
+    {% if user.is_mentor %}
+      <a href="{% url 'chat:chat_mentor_default' %}" class="btn">Czat z moimi studentami</a>
+    {% else %}
+      <a href="{% url 'chat:chat_student' %}" class="btn">Mój czat</a>
+    {% endif %}
+    </p>
   <p><a href="{% url 'logout' %}">Wyloguj</a></p>
   <p><a href="/">Strona główna</a></p>
 </body>

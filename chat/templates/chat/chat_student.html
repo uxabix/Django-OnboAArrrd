@@ -1,0 +1,14 @@
+<h2>Czat z mentorem: {{ mentor.get_full_name|default:mentor.email }}</h2>
+
+<div style="height:300px; overflow-y:scroll; border:1px solid #ccc;">
+    {% for msg in messages %}
+        <p><strong>{{ msg.sender.email }}:</strong> {{ msg.text }} ({{ msg.sent_at }})</p>
+    {% endfor %}
+</div>
+
+<form method="post">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit">Wyślij</button>
+</form>
+<p><a href="{% url 'accounts:logged' %}">Powrót do panelu użytkownika</a></p>
