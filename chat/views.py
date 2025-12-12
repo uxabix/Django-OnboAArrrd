@@ -85,7 +85,7 @@ def chat_mentor(request, student_id=None):
 
     messages = messages.order_by("sent_at")
 
-    return render(request, "exceptions/chat_mentor.html", {
+    return render(request, "chat/chat_mentor.html", {
         "students": students,
         "selected_student": selected_student,
         "messages": messages,
