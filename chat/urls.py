@@ -5,5 +5,9 @@ app_name = "chat"
 
 urlpatterns = [
     # przykładowe ścieżki:
-    path('', views.chat, name='chat'),
-    ]
+    path("student/", views.chat_student, name="chat_student"),
+
+    # mentor może wybrać studenta
+    path("mentor/", views.chat_mentor, name="chat_mentor_default"),
+    path("mentor/<int:student_id>/", views.chat_mentor, name="chat_mentor"),
+]

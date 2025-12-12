@@ -87,3 +87,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
 
     def __str__(self):
         return self.email
+    
+    @property
+    def is_mentor(self):
+        return self.mentees.exists()
