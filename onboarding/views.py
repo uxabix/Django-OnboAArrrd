@@ -5,15 +5,18 @@ from django.db import models
 from .models import User_tasks, User_paths, Tasks, Task_status, Competency_paths
 from .forms import TaskForm, UserTaskForm, UserPathForm, CompetencyPathForm
 
+
 def user_tasks_list(request):
     # Pobiera tylko zadania zalogowanego użytkownika
     tasks = User_tasks.objects.filter(user_id=request.user) if request.user.is_authenticated else []
     return render(request, 'onboarding/user_tasks_list.html', {'tasks': tasks})
 
+
 def user_paths_list(request):
     # Pobiera tylko ścieżki zalogowanego użytkownika
     paths = request.user.user_paths.all() if request.user.is_authenticated else []
     return render(request, 'onboarding/user_paths_list.html', {'paths': paths})
+
 
 def user_competency_paths_with_tasks(request):
     if not request.user.is_authenticated:
@@ -32,6 +35,7 @@ def user_competency_paths_with_tasks(request):
             })
 
     return render(request, 'onboarding/user_competency_paths_with_tasks.html', {'paths_with_tasks': paths_with_tasks})
+
 
 @login_required
 def mentor_task_management(request, student_id=None):
@@ -152,6 +156,7 @@ def mentor_task_management(request, student_id=None):
         'task_statuses': Task_status.Status.choices,
     })
 
+
 @login_required
 def mentor_assign_task(request, student_id):
     mentor = request.user
@@ -187,6 +192,7 @@ def mentor_assign_task(request, student_id):
         'task_search': task_search,
     })
 
+
 @login_required
 def mentor_create_task(request):
     mentor = request.user
@@ -206,6 +212,7 @@ def mentor_create_task(request):
     return render(request, 'onboarding/mentor_create_task.html', {
         'form': form,
     })
+
 
 @login_required
 def mentor_edit_task(request, task_id):
@@ -230,6 +237,7 @@ def mentor_edit_task(request, task_id):
         'task': task,
     })
 
+
 @login_required
 def mentor_delete_user_task(request, user_task_id):
     mentor = request.user
@@ -248,6 +256,7 @@ def mentor_delete_user_task(request, user_task_id):
     return render(request, 'onboarding/mentor_delete_user_task.html', {
         'user_task': user_task,
     })
+
 
 @login_required
 def mentor_assign_path(request, student_id):
@@ -277,6 +286,7 @@ def mentor_assign_path(request, student_id):
         'path_search': path_search,
     })
 
+
 @login_required
 def mentor_delete_user_path(request, user_path_id):
     mentor = request.user
@@ -296,17 +306,19 @@ def mentor_delete_user_path(request, user_path_id):
         'user_path': user_path,
     })
 
+
 @login_required
 def mentor_change_user_task_status(request, user_task_id):
     mentor = request.user
 
-    # Проверка роли
+    # Check role
     if not mentor.is_mentor:
         return render(request, "exceptions/no_students.html")
 
-    user_task = get_object_or_404(User_tasks.objects.select_related('user_id', 'assigned_by'), user_tasks_id=user_task_id)
+    user_task = get_object_or_404(User_tasks.objects.select_related('user_id', 'assigned_by'),
+                                  user_tasks_id=user_task_id)
 
-    # Разрешено менять статус только если задание назначил этот же ментор
+    # Check if task is assigned by current user
     if user_task.assigned_by_id != mentor.id:
         return render(request, "exceptions/no_students.html")
 
@@ -316,12 +328,12 @@ def mentor_change_user_task_status(request, user_task_id):
 
     new_status = request.POST.get('new_status', '').strip()
 
-    # Валидация статуса
+    # Validate status
     valid_values = {choice[0] for choice in Task_status.Status.choices}
     if new_status not in valid_values:
         return redirect('onboarding:mentor_task_management', student_id=user_task.user_id.id)
 
-    # Найти текущую запись статуса; аудита не требуется — просто перезаписываем
+    # Find current status
     latest = user_task.statuses.order_by('-change_date').first()
     if latest:
         latest.old_status = latest.new_status
@@ -335,6 +347,7 @@ def mentor_change_user_task_status(request, user_task_id):
         )
 
     return redirect('onboarding:mentor_task_management', student_id=user_task.user_id.id)
+
 
 @login_required
 def mentor_create_path(request):
