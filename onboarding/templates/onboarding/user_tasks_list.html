@@ -10,7 +10,11 @@
     {% if tasks %}
         <ul>
         {% for utask in tasks %}
-            <li>{{ utask.task_id.title }} — Deadline: {{ utask.deadline }}</li>
+        <li>{{ utask.task_id.title }} — Deadline: {{ utask.deadline }}
+            <a href="{% url 'onboarding:user_task_detail' utask.user_tasks_id %}">
+                <button>Szczegóły</button>
+            </a>
+        </li>
         {% endfor %}
         </ul>
     {% else %}

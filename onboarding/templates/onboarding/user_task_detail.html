@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ user_task.task_id.title }}</title>
+</head>
+<body>
+
+<h1>{{ user_task.task_id.title }}</h1>
+
+<p>{{ user_task.task_id.description }}</p>
+
+<p><strong>Deadline:</strong> {{ user_task.deadline }}</p>
+
+<h2>Historia statusów</h2>
+<ul>
+    {% for status in statuses %}
+        <li>
+            {{ status.change_date }}:
+            {{ status.old_status }} → {{ status.new_status }}
+        </li>
+    {% empty %}
+        <li>Brak historii</li>
+    {% endfor %}
+</ul>
+
+<p>
+    <a href="{% url 'onboarding:user_tasks_list' %}">← Powrót</a>
+</p>
+
+</body>
+</html>

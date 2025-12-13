@@ -1,5 +1,6 @@
 from django.shortcuts import render
 from .models import User_tasks,User_paths
+from django.shortcuts import render, get_object_or_404
 
 def user_tasks_list(request):
     # Pobiera tylko zadania zalogowanego użytkownika
@@ -28,3 +29,18 @@ def user_competency_paths_with_tasks(request):
             })
 
     return render(request, 'onboarding/user_competency_paths_with_tasks.html', {'paths_with_tasks': paths_with_tasks})
+
+def user_task_detail(request, user_task_id):
+    # Pobierz zadanie użytkownika lub zwróć 404, jeśli nie istnieje lub nie należy do użytkownika
+    user_task = get_object_or_404(
+        User_tasks,
+        pk=user_task_id,
+        user_id=request.user
+    )
+
+    statuses = user_task.statuses.order_by("-change_date")
+
+    return render(request, "onboarding/user_task_detail.html", {
+        "user_task": user_task,
+        "statuses": statuses,
+    })
