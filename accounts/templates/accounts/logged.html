@@ -23,7 +23,17 @@
       <a href="{% url 'chat:chat_student' %}" class="btn">Mój czat</a>
     {% endif %}
     </p>
-  <p><a href="{% url 'logout' %}">Wyloguj</a></p>
+    {% if user.is_mentor %}
+    <p>
+      <a href="{% url 'onboarding:mentor_task_management' %}" class="btn">Panel zarządzania zadaniami</a>
+    </p>
+    {% endif %}
+  <p>
+    <form method="post" action="{% url 'logout' %}" style="display: inline;">
+      {% csrf_token %}
+      <button type="submit">Wyloguj</button>
+    </form>
+  </p>
   <p><a href="/">Strona główna</a></p>
 </body>
 </html>

@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <title>Usuń przypisanie ścieżki</title>
+</head>
+<body>
+    <h1>Usuń przypisanie ścieżki kompetencji</h1>
+
+    <p>Czy na pewno chcesz usunąć przypisanie ścieżki "{{ user_path.path.name }}" dla studenta {{ user_path.user.first_name }} {{ user_path.user.last_name }}?</p>
+
+    <form method="post">
+        {% csrf_token %}
+        <button type="submit">Tak, usuń</button>
+        <a href="{% url 'onboarding:mentor_task_management' user_path.user.id %}">Nie, anuluj</a>
+    </form>
+</body>
+</html>
