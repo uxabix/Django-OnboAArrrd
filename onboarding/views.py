@@ -297,6 +297,46 @@ def mentor_delete_user_path(request, user_path_id):
     })
 
 @login_required
+def mentor_change_user_task_status(request, user_task_id):
+    mentor = request.user
+
+    # Проверка роли
+    if not mentor.is_mentor:
+        return render(request, "exceptions/no_students.html")
+
+    user_task = get_object_or_404(User_tasks.objects.select_related('user_id', 'assigned_by'), user_tasks_id=user_task_id)
+
+    # Разрешено менять статус только если задание назначил этот же ментор
+    if user_task.assigned_by_id != mentor.id:
+        return render(request, "exceptions/no_students.html")
+
+    if request.method != 'POST':
+        # Изменение статуса только POST'ом
+        return redirect('onboarding:mentor_task_management', student_id=user_task.user_id.id)
+
+    new_status = request.POST.get('new_status', '').strip()
+
+    # Валидация статуса
+    valid_values = {choice[0] for choice in Task_status.Status.choices}
+    if new_status not in valid_values:
+        return redirect('onboarding:mentor_task_management', student_id=user_task.user_id.id)
+
+    # Найти текущую запись статуса; аудита не требуется — просто перезаписываем
+    latest = user_task.statuses.order_by('-change_date').first()
+    if latest:
+        latest.old_status = latest.new_status
+        latest.new_status = new_status
+        latest.save()
+    else:
+        Task_status.objects.create(
+            user_task=user_task,
+            old_status=None,
+            new_status=new_status,
+        )
+
+    return redirect('onboarding:mentor_task_management', student_id=user_task.user_id.id)
+
+@login_required
 def mentor_create_path(request):
     mentor = request.user
 

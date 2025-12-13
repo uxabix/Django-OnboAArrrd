@@ -125,7 +125,9 @@ class Task_status(models.Model):
     old_status = models.CharField(
         max_length=50,
         choices=Status.choices,
-        default=models.SET_NULL,
+        # models.SET_NULL предназначен для on_delete у ForeignKey, а не как default
+        # Для отсутствующего предыдущего статуса используем None
+        default=None,
         blank=True,
         null=True,
     )
@@ -188,7 +190,8 @@ class Quiz_answers(models.Model):
     question = models.ForeignKey(Quiz_question, on_delete=models.CASCADE, related_name="answer_to_question")
 
     answer = models.CharField(max_length=500)
-    correct = models.BooleanField(default=models.SET_NULL, blank=True, null=True)
+    # default=models.SET_NULL некорректен для BooleanField — используем None при трёхсостоянии
+    correct = models.BooleanField(default=None, blank=True, null=True)
 
     def __str__(self):
         return self.answer

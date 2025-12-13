@@ -139,8 +139,32 @@
                             <td>
                                 <a href="{% url 'onboarding:mentor_edit_task' item.user_task.task_id.task_id %}">Edytuj</a> |
                                 <a href="{% url 'onboarding:mentor_delete_user_task' item.user_task.user_tasks_id %}">Usuń przypisanie</a>
+                                {% if user.id == item.user_task.assigned_by_id %}
+                                | <a href="#" onclick="openStatusModal('{{ item.user_task.user_tasks_id }}'); return false;">Zmień status</a>
+                                {% endif %}
                             </td>
                         </tr>
+                        {% if user.id == item.user_task.assigned_by_id %}
+                        <!-- Modal zmiany statusu -->
+                        <div id="statusModal-{{ item.user_task.user_tasks_id }}" class="modal" style="display:none; position:fixed; z-index:1000; left:0; top:0; width:100%; height:100%; overflow:auto; background-color: rgba(0,0,0,0.4);">
+                          <div class="modal-content" style="background:#fff; margin:10% auto; padding:20px; border:1px solid #888; width:90%; max-width:400px;">
+                            <h3>Zmień status zadania</h3>
+                            <form method="post" action="{% url 'onboarding:mentor_change_user_task_status' item.user_task.user_tasks_id %}">
+                              {% csrf_token %}
+                              <label for="new_status_{{ item.user_task.user_tasks_id }}">Nowy status:</label>
+                              <select id="new_status_{{ item.user_task.user_tasks_id }}" name="new_status" style="width:100%; padding:6px; margin:8px 0;">
+                                {% for status_value, status_label in task_statuses %}
+                                  <option value="{{ status_value }}" {% if item.current_status == status_value %}selected{% endif %}>{{ status_label }}</option>
+                                {% endfor %}
+                              </select>
+                              <div style="margin-top: 12px;">
+                                <button type="submit" style="padding:6px 12px;">Zapisz</button>
+                                <button type="button" onclick="closeStatusModal('{{ item.user_task.user_tasks_id }}')" style="padding:6px 12px; margin-left:8px;">Anuluj</button>
+                              </div>
+                            </form>
+                          </div>
+                        </div>
+                        {% endif %}
                     {% endfor %}
                 </tbody>
             </table>
@@ -165,5 +189,23 @@
     {% endif %}
 
     <p><a href="{% url 'accounts:home' %}">Powrót do strony głównej</a></p>
+
+    <script>
+      function openStatusModal(id) {
+        var el = document.getElementById('statusModal-' + id);
+        if (el) el.style.display = 'block';
+      }
+      function closeStatusModal(id) {
+        var el = document.getElementById('statusModal-' + id);
+        if (el) el.style.display = 'none';
+      }
+      // Закрытие по клику вне модалки
+      window.addEventListener('click', function(event) {
+        var modals = document.querySelectorAll('.modal');
+        modals.forEach(function(m) {
+          if (event.target === m) { m.style.display = 'none'; }
+        });
+      });
+    </script>
 </body>
 </html>
