@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <title>Przypisz ścieżkę kompetencji</title>
+</head>
+<body>
+    <h1>Przypisz ścieżkę kompetencji studentowi: {{ student.first_name }} {{ student.last_name }}</h1>
+
+    <form method="post">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button type="submit">Przypisz ścieżkę</button>
+    </form>
+
+    <p><a href="{% url 'onboarding:mentor_task_management' student.id %}">Anuluj</a></p>
+</body>
+</html>

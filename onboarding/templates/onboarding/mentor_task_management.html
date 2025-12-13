@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <title>Panel zarządzania zadaniami</title>
+</head>
+<body>
+    <h1>Panel zarządzania zadaniami</h1>
+
+    <h2>Wybierz studenta</h2>
+    <ul>
+        {% for student in students %}
+            <li>
+                <a href="{% url 'onboarding:mentor_task_management' student.id %}">
+                    {{ student.first_name }} {{ student.last_name }} ({{ student.email }})
+                </a>
+            </li>
+        {% endfor %}
+    </ul>
+
+    {% if selected_student %}
+        <hr>
+        <h2>Student: {{ selected_student.first_name }} {{ selected_student.last_name }}</h2>
+
+        <h3>Ścieżki kompetencji</h3>
+        <p>
+            <a href="{% url 'onboarding:mentor_assign_path' selected_student.id %}">Przypisz ścieżkę kompetencji</a>
+        </p>
+
+        {% if student_paths %}
+            <table border="1" cellpadding="10">
+                <thead>
+                    <tr>
+                        <th>Nazwa ścieżki</th>
+                        <th>Opis</th>
+                        <th>Przypisane przez</th>
+                        <th>Data przypisania</th>
+                        <th>Akcje</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user_path in student_paths %}
+                        <tr>
+                            <td>{{ user_path.path.name }}</td>
+                            <td>{{ user_path.path.description|truncatewords:20 }}</td>
+                            <td>{{ user_path.assigned_by.first_name }} {{ user_path.assigned_by.last_name }}</td>
+                            <td>{{ user_path.assigned_at|date:"Y-m-d" }}</td>
+                            <td>
+                                <a href="{% url 'onboarding:mentor_delete_user_path' user_path.user_path_id %}">Usuń przypisanie</a>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p>Brak przypisanych ścieżek kompetencji.</p>
+        {% endif %}
+
+        <hr>
+        <h3>Zadania studenta</h3>
+
+        <p>
+            <a href="{% url 'onboarding:mentor_assign_task' selected_student.id %}">Przypisz zadanie</a> |
+            <a href="{% url 'onboarding:mentor_create_task' %}">Utwórz nowe zadanie</a>
+        </p>
+
+        {% if page_obj %}
+            <table border="1" cellpadding="10">
+                <thead>
+                    <tr>
+                        <th>Tytuł zadania</th>
+                        <th>Ścieżka</th>
+                        <th>Opis</th>
+                        <th>Deadline</th>
+                        <th>Obecny status</th>
+                        <th>Przypisane przez</th>
+                        <th>Akcje</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in page_obj %}
+                        <tr>
+                            <td>{{ item.user_task.task_id.title }}</td>
+                            <td>{{ item.user_task.task_id.path.name|default:"Brak ścieżki" }}</td>
+                            <td>{{ item.user_task.task_id.description|truncatewords:15|default:"Brak opisu" }}</td>
+                            <td>{{ item.user_task.deadline }}</td>
+                            <td>{{ item.current_status }}</td>
+                            <td>{{ item.user_task.assigned_by.first_name }} {{ item.user_task.assigned_by.last_name }}</td>
+                            <td>
+                                <a href="{% url 'onboarding:mentor_edit_task' item.user_task.task_id.task_id %}">Edytuj</a> |
+                                <a href="{% url 'onboarding:mentor_delete_user_task' item.user_task.user_tasks_id %}">Usuń przypisanie</a>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+
+            <!-- Paginacja -->
+            <div style="margin-top: 20px;">
+                {% if page_obj.has_previous %}
+                    <a href="?page=1">« Pierwsza</a>
+                    <a href="?page={{ page_obj.previous_page_number }}">Poprzednia</a>
+                {% endif %}
+
+                <span>Strona {{ page_obj.number }} z {{ page_obj.paginator.num_pages }}</span>
+
+                {% if page_obj.has_next %}
+                    <a href="?page={{ page_obj.next_page_number }}">Następna</a>
+                    <a href="?page={{ page_obj.paginator.num_pages }}">Ostatnia »</a>
+                {% endif %}
+            </div>
+        {% else %}
+            <p>Brak przypisanych zadań dla tego studenta.</p>
+        {% endif %}
+    {% endif %}
+
+    <p><a href="{% url 'accounts:home' %}">Powrót do strony głównej</a></p>
+</body>
+</html>

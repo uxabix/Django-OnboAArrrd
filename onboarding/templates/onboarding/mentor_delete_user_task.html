@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <title>Usuń przypisanie zadania</title>
+</head>
+<body>
+    <h1>Usuń przypisanie zadania</h1>
+
+    <p>Czy na pewno chcesz usunąć przypisanie zadania "{{ user_task.task_id.title }}" dla studenta {{ user_task.user_id.first_name }} {{ user_task.user_id.last_name }}?</p>
+
+    <form method="post">
+        {% csrf_token %}
+        <button type="submit">Tak, usuń</button>
+        <a href="{% url 'onboarding:mentor_task_management' user_task.user_id.id %}">Nie, anuluj</a>
+    </form>
+</body>
+</html>
