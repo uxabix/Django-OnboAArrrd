@@ -7,6 +7,15 @@
 <body>
     <h1>Przypisz zadanie studentowi: {{ student.first_name }} {{ student.last_name }}</h1>
 
+    <!-- Formularz wyszukiwania -->
+    <form method="GET" action="{% url 'onboarding:mentor_assign_task' student.id %}" style="margin-bottom: 20px;">
+        <label for="task_search">Szukaj zadania:</label>
+        <input type="text" name="task_search" id="task_search" value="{{ task_search }}" placeholder="Wpisz nazwę lub opis zadania..." style="padding: 5px; width: 300px;">
+        <button type="submit" style="padding: 5px 15px;">Szukaj</button>
+        <a href="{% url 'onboarding:mentor_assign_task' student.id %}" style="padding: 5px 15px; text-decoration: none;">Wyczyść</a>
+    </form>
+
+    <!-- Formularz przypisywania zadania -->
     <form method="post">
         {% csrf_token %}
         {{ form.as_p }}

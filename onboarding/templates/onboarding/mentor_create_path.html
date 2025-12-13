@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <title>Utwórz nową ścieżkę kompetencji</title>
+</head>
+<body>
+    <h1>Utwórz nową ścieżkę kompetencji</h1>
+
+    <form method="POST">
+        {% csrf_token %}
+        <table>
+            {{ form.as_table }}
+        </table>
+        <button type="submit">Zapisz ścieżkę</button>
+        <a href="{% url 'onboarding:mentor_task_management' %}">Anuluj</a>
+    </form>
+</body>
+</html>

@@ -9,6 +9,7 @@ from .views import (
     mentor_delete_user_task,
     mentor_assign_path,
     mentor_delete_user_path,
+    mentor_create_path,
 )
 
 app_name = "onboarding"
@@ -25,4 +26,5 @@ urlpatterns = [
     path('mentor/delete-user-task/<int:user_task_id>/', mentor_delete_user_task, name='mentor_delete_user_task'),
     path('mentor/assign-path/<int:student_id>/', mentor_assign_path, name='mentor_assign_path'),
     path('mentor/delete-user-path/<int:user_path_id>/', mentor_delete_user_path, name='mentor_delete_user_path'),
+    path('mentor/create-path/', mentor_create_path, name='mentor_create_path'),
 ]

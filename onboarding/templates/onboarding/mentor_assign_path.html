@@ -7,6 +7,18 @@
 <body>
     <h1>Przypisz ścieżkę kompetencji studentowi: {{ student.first_name }} {{ student.last_name }}</h1>
 
+    <!-- Formularz wyszukiwania -->
+    <form method="GET" action="{% url 'onboarding:mentor_assign_path' student.id %}" style="margin-bottom: 20px;">
+        <label for="path_search">Szukaj ścieżki:</label>
+        <input type="text" name="path_search" id="path_search" value="{{ path_search }}" placeholder="Wpisz nazwę lub opis ścieżki..." style="padding: 5px; width: 300px;">
+        <button type="submit" style="padding: 5px 15px;">Szukaj</button>
+        <a href="{% url 'onboarding:mentor_assign_path' student.id %}" style="padding: 5px 15px; text-decoration: none;">Wyczyść</a>
+    </form>
+
+    <!-- Link do tworzenia nowej ścieżki -->
+    <p><a href="{% url 'onboarding:mentor_create_path' %}">Utwórz nową ścieżkę kompetencji</a></p>
+
+    <!-- Formularz przypisywania ścieżki -->
     <form method="post">
         {% csrf_token %}
         {{ form.as_p }}

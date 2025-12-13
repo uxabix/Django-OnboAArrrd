@@ -24,10 +24,24 @@
 
         <h3>Ścieżki kompetencji</h3>
         <p>
-            <a href="{% url 'onboarding:mentor_assign_path' selected_student.id %}">Przypisz ścieżkę kompetencji</a>
+            <a href="{% url 'onboarding:mentor_assign_path' selected_student.id %}">Przypisz ścieżkę kompetencji</a> |
+            <a href="{% url 'onboarding:mentor_create_path' %}">Utwórz nową ścieżkę kompetencji</a>
         </p>
 
-        {% if student_paths %}
+        <!-- Wyszukiwanie i sortowanie ścieżek -->
+        <form method="GET" action="{% url 'onboarding:mentor_task_management' selected_student.id %}" style="margin-bottom: 20px;">
+            <input type="text" name="path_search" value="{{ path_search }}" placeholder="Szukaj ścieżki..." style="padding: 5px; width: 300px;">
+            <select name="path_sort" style="padding: 5px;">
+                <option value="-assigned_at" {% if path_sort == '-assigned_at' %}selected{% endif %}>Najnowsze przypisanie</option>
+                <option value="assigned_at" {% if path_sort == 'assigned_at' %}selected{% endif %}>Najstarsze przypisanie</option>
+                <option value="name" {% if path_sort == 'name' %}selected{% endif %}>Nazwa (A-Z)</option>
+                <option value="-name" {% if path_sort == '-name' %}selected{% endif %}>Nazwa (Z-A)</option>
+            </select>
+            <button type="submit" style="padding: 5px 15px;">Szukaj</button>
+            <a href="{% url 'onboarding:mentor_task_management' selected_student.id %}" style="padding: 5px 15px; text-decoration: none;">Wyczyść</a>
+        </form>
+
+        {% if paths_page_obj %}
             <table border="1" cellpadding="10">
                 <thead>
                     <tr>
@@ -39,7 +53,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                    {% for user_path in student_paths %}
+                    {% for user_path in paths_page_obj %}
                         <tr>
                             <td>{{ user_path.path.name }}</td>
                             <td>{{ user_path.path.description|truncatewords:20 }}</td>
@@ -52,6 +66,21 @@
                     {% endfor %}
                 </tbody>
             </table>
+
+            <!-- Paginacja dla ścieżek -->
+            <div style="margin-top: 20px;">
+                {% if paths_page_obj.has_previous %}
+                    <a href="?paths_page=1{% if path_search %}&path_search={{ path_search }}{% endif %}{% if path_sort %}&path_sort={{ path_sort }}{% endif %}">« Pierwsza</a>
+                    <a href="?paths_page={{ paths_page_obj.previous_page_number }}{% if path_search %}&path_search={{ path_search }}{% endif %}{% if path_sort %}&path_sort={{ path_sort }}{% endif %}">Poprzednia</a>
+                {% endif %}
+
+                <span>Strona {{ paths_page_obj.number }} z {{ paths_page_obj.paginator.num_pages }}</span>
+
+                {% if paths_page_obj.has_next %}
+                    <a href="?paths_page={{ paths_page_obj.next_page_number }}{% if path_search %}&path_search={{ path_search }}{% endif %}{% if path_sort %}&path_sort={{ path_sort }}{% endif %}">Następna</a>
+                    <a href="?paths_page={{ paths_page_obj.paginator.num_pages }}{% if path_search %}&path_search={{ path_search }}{% endif %}{% if path_sort %}&path_sort={{ path_sort }}{% endif %}">Ostatnia »</a>
+                {% endif %}
+            </div>
         {% else %}
             <p>Brak przypisanych ścieżek kompetencji.</p>
         {% endif %}
@@ -64,7 +93,28 @@
             <a href="{% url 'onboarding:mentor_create_task' %}">Utwórz nowe zadanie</a>
         </p>
 
-        {% if page_obj %}
+        <!-- Wyszukiwanie i sortowanie zadań -->
+        <form method="GET" action="{% url 'onboarding:mentor_task_management' selected_student.id %}" style="margin-bottom: 20px;">
+            <input type="text" name="task_search" value="{{ task_search }}" placeholder="Szukaj zadania..." style="padding: 5px; width: 300px;">
+            <select name="task_sort" style="padding: 5px;">
+                <option value="-created_at" {% if task_sort == '-created_at' %}selected{% endif %}>Najnowsze</option>
+                <option value="created_at" {% if task_sort == 'created_at' %}selected{% endif %}>Najstarsze</option>
+                <option value="title" {% if task_sort == 'title' %}selected{% endif %}>Tytuł (A-Z)</option>
+                <option value="-title" {% if task_sort == '-title' %}selected{% endif %}>Tytuł (Z-A)</option>
+                <option value="deadline" {% if task_sort == 'deadline' %}selected{% endif %}>Deadline (najwcześniejszy)</option>
+                <option value="-deadline" {% if task_sort == '-deadline' %}selected{% endif %}>Deadline (najpóźniejszy)</option>
+            </select>
+            <select name="task_status" style="padding: 5px;">
+                <option value="">Wszystkie statusy</option>
+                {% for status_value, status_label in task_statuses %}
+                    <option value="{{ status_value }}" {% if task_status_filter == status_value %}selected{% endif %}>{{ status_label }}</option>
+                {% endfor %}
+            </select>
+            <button type="submit" style="padding: 5px 15px;">Szukaj</button>
+            <a href="{% url 'onboarding:mentor_task_management' selected_student.id %}" style="padding: 5px 15px; text-decoration: none;">Wyczyść</a>
+        </form>
+
+        {% if tasks_page_obj %}
             <table border="1" cellpadding="10">
                 <thead>
                     <tr>
@@ -78,7 +128,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                    {% for item in page_obj %}
+                    {% for item in tasks_page_obj %}
                         <tr>
                             <td>{{ item.user_task.task_id.title }}</td>
                             <td>{{ item.user_task.task_id.path.name|default:"Brak ścieżki" }}</td>
@@ -95,18 +145,18 @@
                 </tbody>
             </table>
 
-            <!-- Paginacja -->
+            <!-- Paginacja dla zadań -->
             <div style="margin-top: 20px;">
-                {% if page_obj.has_previous %}
-                    <a href="?page=1">« Pierwsza</a>
-                    <a href="?page={{ page_obj.previous_page_number }}">Poprzednia</a>
+                {% if tasks_page_obj.has_previous %}
+                    <a href="?tasks_page=1{% if task_search %}&task_search={{ task_search }}{% endif %}{% if task_sort %}&task_sort={{ task_sort }}{% endif %}{% if task_status_filter %}&task_status={{ task_status_filter }}{% endif %}">« Pierwsza</a>
+                    <a href="?tasks_page={{ tasks_page_obj.previous_page_number }}{% if task_search %}&task_search={{ task_search }}{% endif %}{% if task_sort %}&task_sort={{ task_sort }}{% endif %}{% if task_status_filter %}&task_status={{ task_status_filter }}{% endif %}">Poprzednia</a>
                 {% endif %}
 
-                <span>Strona {{ page_obj.number }} z {{ page_obj.paginator.num_pages }}</span>
+                <span>Strona {{ tasks_page_obj.number }} z {{ tasks_page_obj.paginator.num_pages }}</span>
 
-                {% if page_obj.has_next %}
-                    <a href="?page={{ page_obj.next_page_number }}">Następna</a>
-                    <a href="?page={{ page_obj.paginator.num_pages }}">Ostatnia »</a>
+                {% if tasks_page_obj.has_next %}
+                    <a href="?tasks_page={{ tasks_page_obj.next_page_number }}{% if task_search %}&task_search={{ task_search }}{% endif %}{% if task_sort %}&task_sort={{ task_sort }}{% endif %}{% if task_status_filter %}&task_status={{ task_status_filter }}{% endif %}">Następna</a>
+                    <a href="?tasks_page={{ tasks_page_obj.paginator.num_pages }}{% if task_search %}&task_search={{ task_search }}{% endif %}{% if task_sort %}&task_sort={{ task_sort }}{% endif %}{% if task_status_filter %}&task_status={{ task_status_filter }}{% endif %}">Ostatnia »</a>
                 {% endif %}
             </div>
         {% else %}
