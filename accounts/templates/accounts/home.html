@@ -10,7 +10,12 @@
   {% if user.is_authenticated %}
     <p>Jesteś zalogowany jako {{ user.email }} — <a href="{% url 'accounts:logged' %}">Przejdź do panelu</a></p>
 
-    <p><a href="{% url 'logout' %}">Wyloguj</a></p>
+    <p>
+      <form method="post" action="{% url 'logout' %}" style="display: inline;">
+        {% csrf_token %}
+        <button type="submit">Wyloguj</button>
+      </form>
+    </p>
   {% else %}
     <a href="{% url 'login' %}"><button>Zaloguj się</button></a>
   {% endif %}
