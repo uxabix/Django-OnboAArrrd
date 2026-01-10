@@ -16,7 +16,7 @@ def run(count=1, group=None):
     for user in users:
         for _ in range(count):
             path = random.choice(paths)
-            assigned_by = random.choice(users)  # ментор или любой другой пользователь
+            assigned_by = random.choice(users)  # Mentor or student
             User_paths.objects.get_or_create(
                 user=user,
                 path=path,

@@ -1,6 +1,6 @@
 from onboarding.models import Task_types, Tasks, Competency_paths
 
-def run(count=10, group=None):
+def run(count=6, group=None):
     task_types_data = ["Text", "Quiz"]
     for t in task_types_data:
         Task_types.objects.get_or_create(task_type=t)

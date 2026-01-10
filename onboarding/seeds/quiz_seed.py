@@ -1,3 +1,5 @@
+import random
+
 from onboarding.models import Tasks, Quizzes, Quiz_question, Quiz_answers
 
 def run(count=1, group=None):
@@ -10,17 +12,18 @@ def run(count=1, group=None):
     answer_counter = 1
 
     for task in tasks:
-        # Создаем quiz для каждой задачи
+        if random.random() > 0.4: # Skip 60% of tasks
+            continue
         quiz = Quizzes.objects.create(task=task)
 
-        for q in range(count):  # создаем count вопросов на задачу
+        for q in range(count):  # Create count of questions for each task
             question = Quiz_question.objects.create(
                 quiz=quiz,
                 question=f"Question {question_counter} for {task.title}"
             )
 
-            # Создаем 4 варианта ответов, первый правильный
-            for i in range(4):
+            # Create answers for each question
+            for i in range(random.randint(2, 4)):
                 Quiz_answers.objects.create(
                     question=question,
                     answer=f"Answer {answer_counter}",

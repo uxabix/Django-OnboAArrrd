@@ -183,8 +183,9 @@ docker compose exec web python manage.py seed reports user_grades --count 20
 You can remove all data related to users in the `TestUsers` group using the `clear_test_data` management command. This is useful if you want to reset the test data without affecting real users.
 
 Run the command:
-
-python manage.py clear_test_data
+```bash
+docker compose exec web python manage.py clear_test_data
+```
 
 This will delete:
 

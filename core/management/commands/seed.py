@@ -12,6 +12,8 @@ SEEDERS_ORDER = [
     "quiz",
     "user_paths",
     "user_tasks",
+    "task_status",
+    "grades",
     "reports",
     "messages"
 ]
@@ -26,6 +28,8 @@ SEEDERS = {
     "quiz": "onboarding.seeds.quiz_seed",
     "user_paths": "onboarding.seeds.user_paths_seed",
     "user_tasks": "onboarding.seeds.user_tasks_seed",
+    "task_status": "onboarding.seeds.task_status_seed",
+    "grades": "onboarding.seeds.grades_seed",
     "reports": "onboarding.seeds.reports_seed",
     "messages": "chat.seeds.messages_seed",
 }
@@ -47,7 +51,7 @@ class Command(BaseCommand):
         modules = options['modules'] or ['all']
         count = options['count']
 
-        # Создаем группу TestUsers
+        # Create a TestUsers group
         group, created = Group.objects.get_or_create(name="TestUsers")
         if created:
             self.stdout.write(self.style.SUCCESS("Created group 'TestUsers'"))

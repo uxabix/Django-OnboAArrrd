@@ -15,15 +15,35 @@ def run(count=1, group=None):
     total_statuses = 0
 
     for user_task in user_tasks:
-        # Создаём несколько статусов для каждой user_task
+        # Make realistic chain of statuses
+        # First status: From None to DO_ZROBIENIA
+        Task_status.objects.get_or_create(
+            user_task=user_task,
+            old_status=None,
+            new_status=Task_status.Status.DO_ZROBIENIA
+        )
+        total_statuses += 1
+
+        # Other statuses - task progression
+        current_status = Task_status.Status.DO_ZROBIENIA
         for _ in range(count):
-            old_status = random.choice(status_choices)
-            new_status = random.choice(status_choices)
-            Task_status.objects.get_or_create(
-                user_task=user_task,
-                old_status=old_status,
-                new_status=new_status
-            )
-            total_statuses += 1
+            # Choose new status based on current status
+            if current_status == Task_status.Status.DO_ZROBIENIA:
+                new_status = random.choice([Task_status.Status.W_TRAKCIE, Task_status.Status.DO_ZROBIENIA])
+            elif current_status == Task_status.Status.W_TRAKCIE:
+                new_status = random.choice([Task_status.Status.DO_WERYFIKACJI, Task_status.Status.W_TRAKCIE])
+            elif current_status == Task_status.Status.DO_WERYFIKACJI:
+                new_status = random.choice([Task_status.Status.UKONCZONE, Task_status.Status.W_TRAKCIE])
+            else:
+                new_status = Task_status.Status.UKONCZONE
+
+            if new_status != current_status:
+                Task_status.objects.get_or_create(
+                    user_task=user_task,
+                    old_status=current_status,
+                    new_status=new_status
+                )
+                total_statuses += 1
+                current_status = new_status
 
     print(f"Created {total_statuses} task statuses.")
