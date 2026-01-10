@@ -9,7 +9,10 @@ from .forms import TaskForm, UserTaskForm, UserPathForm, CompetencyPathForm
 def user_tasks_list(request):
     # Pobiera tylko zadania zalogowanego użytkownika
     tasks = User_tasks.objects.filter(user_id=request.user) if request.user.is_authenticated else []
-    return render(request, 'onboarding/user_tasks_list.html', {'tasks': tasks})
+    return render(request, 'onboarding/user_tasks_list.html', {
+        'tasks': tasks,
+        'now': models.functions.Now(),
+    })
 
 
 def user_paths_list(request):
@@ -154,6 +157,7 @@ def mentor_task_management(request, student_id=None):
         'path_search': path_search,
         'path_sort': path_sort,
         'task_statuses': Task_status.Status.choices,
+        'now': models.functions.Now(),
     })
 
 
@@ -176,7 +180,7 @@ def mentor_assign_task(request, student_id):
             user_task.assigned_by = mentor
             user_task.save()
 
-            # Создание начального статуса задачи
+            # Create initial task status
             Task_status.objects.create(
                 user_task=user_task,
                 new_status=Task_status.Status.DO_ZROBIENIA

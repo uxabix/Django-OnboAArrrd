@@ -1,22 +1,55 @@
-<!DOCTYPE html>
-<html lang="pl">
-<head>
-    <meta charset="UTF-8">
-    <title>Moje zadania</title>
-</head>
-<body>
-    <h1>Moje zadania</h1>
+{% extends "base.html" %}
 
-    {% if tasks %}
-        <ul>
-        {% for utask in tasks %}
-            <li>{{ utask.task_id.title }} — Deadline: {{ utask.deadline }}</li>
-        {% endfor %}
-        </ul>
-    {% else %}
-        <p>Brak przypisanych zadań.</p>
-    {% endif %}
+{% block title %}Moje zadania{% endblock %}
 
-    <p><a href="{% url 'accounts:home' %}">Powrót do strony głównej</a></p>
-</body>
-</html>
+{% block content %}
+<div class="row">
+    <div class="col-md-10 offset-md-1">
+        <div class="card shadow-sm">
+            <div class="card-header bg-primary text-white">
+                <h2 class="mb-0"><i class="fas fa-tasks me-2"></i>Moje zadania</h2>
+            </div>
+            <div class="card-body">
+                {% if tasks %}
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Zadanie</th>
+                                    <th>Opis</th>
+                                    <th>Termin (Deadline)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for utask in tasks %}
+                                    <tr>
+                                        <td class="fw-bold text-primary">{{ utask.task_id.title }}</td>
+                                        <td>{{ utask.task_id.description|truncatewords:15|default:"Brak opisu" }}</td>
+                                        <td>
+                                            <span class="badge {% if utask.deadline < now %}bg-danger{% else %}bg-info text-dark{% endif %} p-2">
+                                                <i class="far fa-calendar-alt me-1"></i> {{ utask.deadline|date:"d.m.Y" }}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <div class="text-center py-5">
+                        <i class="fas fa-clipboard-check fa-4x text-muted mb-3 opacity-25"></i>
+                        <h4 class="text-muted">Brak przypisanych zadań.</h4>
+                        <p>Wszystko zrobione! Możesz odpocząć или skontaktować się z mentorem.</p>
+                    </div>
+                {% endif %}
+
+                <div class="mt-4">
+                    <a href="{% url 'accounts:logged' %}" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left me-1"></i> Powrót do panelu
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
