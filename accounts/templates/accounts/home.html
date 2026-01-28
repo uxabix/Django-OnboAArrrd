@@ -1,66 +1,23 @@
-{% extends "base.html" %}
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <title>Strona główna</title>
+</head>
+<body>
+  <h1>Strona główna</h1>
 
-{% block title %}Strona główna - OnboAArrrd{% endblock %}
+  {% if user.is_authenticated %}
+    <p>Jesteś zalogowany jako {{ user.email }} — <a href="{% url 'accounts:logged' %}">Przejdź do panelu</a></p>
 
-{% block content %}
-<div class="row">
-    <div class="col-lg-10 offset-lg-1">
-
-        <!-- HERO -->
-        <div class="hero d-flex flex-column justify-content-center align-items-center text-dark text-center p-4">
-            <h1 class="mb-3">OnboAArrrd</h1>
-            <p class="lead mb-4">
-                Platforma onboardingowa wspierająca rozwój kompetencji i współpracę mentor - student
-            </p>
-
-            {% if user.is_authenticated %}
-                <a href="{% url 'accounts:logged' %}" class="btn btn-light btn-lg">
-                    <i class="fas fa-tachometer-alt me-2"></i>Przejdź do panelu
-                </a>
-            {% else %}
-                <a href="{% url 'login' %}" class="btn btn-outline-dark btn-lg">
-                    <i class="fas fa-sign-in-alt me-2"></i>Zaloguj się
-                </a>
-            {% endif %}
-        </div>
-
-        <!-- INFO SEKCJA -->
-        <div class="row text-center mt-5">
-            <div class="col-md-4">
-                <i class="fas fa-route fa-3x text-primary mb-3"></i>
-                <h5>Ścieżki kompetencji</h5>
-                <p class="text-muted">
-                    Rozwijaj umiejętności krok po kroku według zaplanowanych ścieżek.
-                </p>
-            </div>
-
-            <div class="col-md-4">
-                <i class="fas fa-tasks fa-3x text-primary mb-3"></i>
-                <h5>Zadania</h5>
-                <p class="text-muted">
-                    Realizuj zadania przypisane przez mentora i śledź postępy.
-                </p>
-            </div>
-
-            <div class="col-md-4">
-                <i class="fas fa-comments fa-3x text-primary mb-3"></i>
-                <h5>Komunikacja</h5>
-                <p class="text-muted">
-                    Stały kontakt z mentorem lub studentami poprzez czat.
-                </p>
-            </div>
-        </div>
-
-        <!-- CTA DOLNE -->
-        {% if not user.is_authenticated %}
-        <div class="text-center mt-5">
-            <p class="mb-3 fw-bold">Masz już konto?</p>
-            <a href="{% url 'login' %}" class="btn btn-primary btn-lg">
-                Zaloguj się
-            </a>
-        </div>
-        {% endif %}
-
-    </div>
-</div>
-{% endblock %}
+    <p>
+      <form method="post" action="{% url 'logout' %}" style="display: inline;">
+        {% csrf_token %}
+        <button type="submit">Wyloguj</button>
+      </form>
+    </p>
+  {% else %}
+    <a href="{% url 'login' %}"><button>Zaloguj się</button></a>
+  {% endif %}
+</body>
+</html>
