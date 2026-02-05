@@ -1,0 +1,274 @@
+{% extends "base.html" %}
+
+{% block title %}Zarządzanie Zadaniami - Mentor{% endblock %}
+
+{% block content %}
+<div class="row">
+    <!-- Sidebar with students list -->
+    <div class="col-md-3">
+        <div class="card shadow-sm">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="fas fa-users me-2"></i>Studenci</h5>
+            </div>
+            <div class="list-group list-group-flush">
+                {% for student in students %}
+                    <a href="{% url 'onboarding:mentor_task_management' student.id %}" 
+                       class="list-group-item list-group-item-action {% if selected_student.id == student.id %}active{% endif %}">
+                        <div class="d-flex w-100 justify-content-between align-items-center">
+                            <span class="text-truncate">{{ student.first_name }} {{ student.last_name }}</span>
+                            {% if selected_student.id == student.id %}
+                                <i class="fas fa-chevron-right ms-2"></i>
+                            {% endif %}
+                        </div>
+                        <small class="{% if selected_student.id == student.id %}text-white-50{% else %}text-muted{% endif %} d-block text-truncate">
+                            {{ student.email }}
+                        </small>
+                    </a>
+                {% empty %}
+                    <div class="list-group-item">Brak studentów.</div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Main content -->
+    <div class="col-md-9">
+        {% if selected_student %}
+            <div class="card shadow-sm mb-4">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <h2 class="card-title mb-0">
+                            <i class="fas fa-user-grad me-2 text-primary"></i>
+                            {{ selected_student.first_name }} {{ selected_student.last_name }}
+                        </h2>
+                        <div class="btn-group">
+                            <a href="{% url 'chat:chat_mentor' selected_student.id %}" class="btn btn-outline-primary">
+                                <i class="fas fa-comment me-1"></i> Czat
+                            </a>
+                        </div>
+                    </div>
+
+                    <!-- Competency Paths Section -->
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h4 class="mb-0">Ścieżki kompetencji</h4>
+                        <div class="btn-group btn-group-sm">
+                            <a href="{% url 'onboarding:mentor_assign_path' selected_student.id %}" class="btn btn-primary">
+                                <i class="fas fa-plus me-1"></i> Przypisz ścieżkę
+                            </a>
+                            <a href="{% url 'onboarding:mentor_create_path' %}" class="btn btn-outline-secondary">
+                                <i class="fas fa-folder-plus me-1"></i> Nowa ścieżka
+                            </a>
+                        </div>
+                    </div>
+
+                    <!-- Filter for paths -->
+                    <form method="GET" class="row g-2 mb-3">
+                        <div class="col-md-6">
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text"><i class="fas fa-search"></i></span>
+                                <input type="text" name="path_search" value="{{ path_search }}" class="form-control" placeholder="Szukaj ścieżki...">
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <select name="path_sort" class="form-select form-select-sm">
+                                <option value="-assigned_at" {% if path_sort == '-assigned_at' %}selected{% endif %}>Najnowsze przypisanie</option>
+                                <option value="assigned_at" {% if path_sort == 'assigned_at' %}selected{% endif %}>Najstarsze przypisanie</option>
+                                <option value="name" {% if path_sort == 'name' %}selected{% endif %}>Nazwa (A-Z)</option>
+                                <option value="-name" {% if path_sort == '-name' %}selected{% endif %}>Nazwa (Z-A)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2 d-grid">
+                            <button type="submit" class="btn btn-secondary btn-sm">Filtruj</button>
+                        </div>
+                    </form>
+
+                    {% if paths_page_obj %}
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Nazwa ścieżki</th>
+                                        <th>Data przypisania</th>
+                                        <th>Przypisane przez</th>
+                                        <th class="text-end">Akcje</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for user_path in paths_page_obj %}
+                                        <tr>
+                                            <td>
+                                                <div class="fw-bold">{{ user_path.path.name }}</div>
+                                                <small class="text-muted">{{ user_path.path.description|truncatewords:10 }}</small>
+                                            </td>
+                                            <td>{{ user_path.assigned_at|date:"d.m.Y" }}</td>
+                                            <td>{{ user_path.assigned_by.first_name }} {{ user_path.assigned_by.last_name }}</td>
+                                            <td class="text-end">
+                                                <a href="{% url 'onboarding:mentor_delete_user_path' user_path.user_path_id %}" 
+                                                   class="btn btn-outline-danger btn-sm" title="Usuń przypisanie">
+                                                    <i class="fas fa-trash"></i>
+                                                </a>
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="alert alert-light border text-center small py-2">Brak przypisanych ścieżek kompetencji.</div>
+                    {% endif %}
+
+                    <hr class="my-4">
+
+                    <!-- Tasks Section -->
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h4 class="mb-0">Zadania studenta</h4>
+                        <div class="btn-group btn-group-sm">
+                            <a href="{% url 'onboarding:mentor_assign_task' selected_student.id %}" class="btn btn-primary">
+                                <i class="fas fa-plus me-1"></i> Przypisz zadanie
+                            </a>
+                            <a href="{% url 'onboarding:mentor_create_task' %}" class="btn btn-outline-secondary">
+                                <i class="fas fa-file-medical me-1"></i> Nowe zadanie
+                            </a>
+                        </div>
+                    </div>
+
+                    <!-- Search and sort tasks -->
+                    <form method="GET" class="row g-2 mb-3">
+                        <div class="col-md-4">
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text"><i class="fas fa-search"></i></span>
+                                <input type="text" name="task_search" value="{{ task_search }}" class="form-control" placeholder="Szukaj zadania...">
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <select name="task_sort" class="form-select form-select-sm">
+                                <option value="-created_at" {% if task_sort == '-created_at' %}selected{% endif %}>Najnowsze</option>
+                                <option value="created_at" {% if task_sort == 'created_at' %}selected{% endif %}>Najstarsze</option>
+                                <option value="title" {% if task_sort == 'title' %}selected{% endif %}>Tytuł (A-Z)</option>
+                                <option value="-title" {% if task_sort == '-title' %}selected{% endif %}>Tytuł (Z-A)</option>
+                                <option value="deadline" {% if task_sort == 'deadline' %}selected{% endif %}>Termin (rosnąco)</option>
+                                <option value="-deadline" {% if task_sort == '-deadline' %}selected{% endif %}>Termin (malejąco)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <select name="task_status" class="form-select form-select-sm">
+                                <option value="">Wszystkie statusy</option>
+                                {% for status_value, status_label in task_statuses %}
+                                    <option value="{{ status_value }}" {% if task_status_filter == status_value %}selected{% endif %}>{{ status_label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-2 d-grid">
+                            <button type="submit" class="btn btn-secondary btn-sm">Filtruj</button>
+                        </div>
+                    </form>
+
+                    {% if tasks_page_obj %}
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Zadanie / Ścieżka</th>
+                                        <th>Termin</th>
+                                        <th>Status</th>
+                                        <th class="text-end">Akcje</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for item in tasks_page_obj %}
+                                        <tr>
+                                            <td>
+                                                <div class="fw-bold text-primary">{{ item.user_task.task_id.title }}</div>
+                                                <small class="text-muted">
+                                                    {% if item.user_task.task_id.path %}
+                                                        <i class="fas fa-route me-1 small"></i>{{ item.user_task.task_id.path.name }}
+                                                    {% else %}
+                                                        <span class="fst-italic text-warning small">Brak ścieżki</span>
+                                                    {% endif %}
+                                                </small>
+                                            </td>
+                                            <td>
+                                                <span class="small {% if item.user_task.deadline < now and item.current_status != 'ZROBIONE' %}text-danger fw-bold{% endif %}">
+                                                    {{ item.user_task.deadline|date:"d.m.Y" }}
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <span class="badge rounded-pill 
+                                                    {% if item.current_status == 'DO_ZROBIENIA' %}bg-secondary
+                                                    {% elif item.current_status == 'W_TRAKCIE' %}bg-primary
+                                                    {% elif item.current_status == 'DO_POPRAWY' %}bg-warning text-dark
+                                                    {% elif item.current_status == 'ZROBIONE' %}bg-success
+                                                    {% endif %}">
+                                                    {{ item.current_status }}
+                                                </span>
+                                            </td>
+                                            <td class="text-end">
+                                                <div class="btn-group btn-group-sm">
+                                                    {% if user.id == item.user_task.assigned_by_id %}
+                                                        <button type="button" class="btn btn-outline-info" 
+                                                                data-bs-toggle="modal" data-bs-target="#statusModal-{{ item.user_task.user_tasks_id }}"
+                                                                title="Zmień status">
+                                                            <i class="fas fa-sync-alt"></i>
+                                                        </button>
+                                                    {% endif %}
+                                                    <a href="{% url 'onboarding:mentor_edit_task' item.user_task.task_id.task_id %}" 
+                                                       class="btn btn-outline-secondary" title="Edytuj">
+                                                        <i class="fas fa-edit"></i>
+                                                    </a>
+                                                    <a href="{% url 'onboarding:mentor_delete_user_task' item.user_task.user_tasks_id %}" 
+                                                       class="btn btn-outline-danger" title="Usuń">
+                                                        <i class="fas fa-trash"></i>
+                                                    </a>
+                                                </div>
+
+                                                {% if user.id == item.user_task.assigned_by_id %}
+                                                <!-- Status Change Modal -->
+                                                <div class="modal fade" id="statusModal-{{ item.user_task.user_tasks_id }}" tabindex="-1" aria-hidden="true text-start">
+                                                    <div class="modal-dialog modal-sm">
+                                                        <div class="modal-content">
+                                                            <div class="modal-header">
+                                                                <h5 class="modal-title">Zmień status</h5>
+                                                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                                            </div>
+                                                            <form method="post" action="{% url 'onboarding:mentor_change_user_task_status' item.user_task.user_tasks_id %}">
+                                                                {% csrf_token %}
+                                                                <div class="modal-body text-start">
+                                                                    <label class="form-label">Nowy status:</label>
+                                                                    <select name="new_status" class="form-select">
+                                                                        {% for status_value, status_label in task_statuses %}
+                                                                            <option value="{{ status_value }}" {% if item.current_status == status_value %}selected{% endif %}>{{ status_label }}</option>
+                                                                        {% endfor %}
+                                                                    </select>
+                                                                </div>
+                                                                <div class="modal-footer">
+                                                                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Anuluj</button>
+                                                                    <button type="submit" class="btn btn-primary btn-sm">Zapisz</button>
+                                                                </div>
+                                                            </form>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="alert alert-light border text-center small py-2">Brak zadań pasujących do filtrów.</div>
+                    {% endif %}
+                </div>
+            </div>
+        {% else %}
+            <div class="card shadow-sm border-0">
+                <div class="card-body text-center py-5">
+                    <i class="fas fa-users-slash fa-4x text-muted mb-3"></i>
+                    <h3 class="text-muted">Nie wybrano studenta</h3>
+                    <p class="text-muted">Wybierz studenta z listy po lewej stronie, aby zarządzać jego zadaniami.</p>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

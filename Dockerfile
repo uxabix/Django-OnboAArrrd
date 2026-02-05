@@ -1,5 +1,11 @@
 FROM python:3.11-slim
 
+# Instalacja bibliotek systemowych wymaganych przez Pillow
+RUN apt-get update && apt-get install -y \
+    libjpeg-dev \
+    zlib1g-dev \
+    libpng-dev
+
 WORKDIR /app
 
 COPY requirements.txt .
