@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block title %}Moje ścieżki i zadania{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-10 offset-md-1">
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-primary text-white">
+                <h2 class="mb-0"><i class="fas fa-route me-2"></i>Moje ścieżki kompetencji</h2>
+            </div>
+            <div class="card-body">
+                {% if paths_with_tasks %}
+                    {% for item in paths_with_tasks %}
+                        <div class="card mb-4 border-start border-primary border-4 shadow-sm">
+                            <div class="card-header bg-white">
+                                <h4 class="text-primary mb-1">{{ item.user_path.path.name }}</h4>
+                                <p class="text-muted small mb-0">{{ item.user_path.path.description|default_if_none:"Brak opisu" }}</p>
+                            </div>
+                            <div class="card-body">
+                                <h5 class="card-title small text-uppercase text-muted mb-3">Zadania w tej ścieżce:</h5>
+                                <div class="list-group list-group-flush">
+                                    {% if item.tasks %}
+                                        {% for task in item.tasks %}
+                                            <div class="list-group-item d-flex justify-content-between align-items-center bg-transparent px-0">
+                                                <div>
+                                                    <div class="fw-bold">{{ task.title }}</div>
+                                                    {% if task.description %}
+                                                        <div class="small text-muted">{{ task.description }}</div>
+                                                    {% endif %}
+                                                </div>
+                                                <i class="fas fa-check-circle text-muted opacity-25"></i>
+                                            </div>
+                                        {% endfor %}
+                                    {% else %}
+                                        <div class="text-muted fst-italic">Brak przypisanych zadań do tej ścieżki.</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="text-center py-5">
+                        <i class="fas fa-map-signs fa-4x text-muted mb-3 opacity-25"></i>
+                        <h4 class="text-muted">Nie masz przypisanych żadnych ścieżek.</h4>
+                        <p>Skontaktuj się ze swoim mentorem, aby przypisać nową ścieżkę rozwoju.</p>
+                    </div>
+                {% endif %}
+
+                <div class="mt-4">
+                    <a href="{% url 'accounts:logged' %}" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left me-1"></i> Powrót do panelu
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
