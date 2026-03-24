@@ -45,41 +45,42 @@
                     </a>
                 </div>
                 
-                <div class="card-body bg-light" id="chat-messages" style="height: 400px; overflow-y: auto;">
-                    {% for msg in messages %}
-                        <div class="mb-3 d-flex {% if msg.sender == user %}justify-content-end{% else %}justify-content-start{% endif %}">
-                            <div class="p-3 rounded-3 shadow-sm {% if msg.sender == user %}bg-primary text-white{% else %}bg-white text-dark{% endif %}" style="max-width: 75%;">
-                                <div class="small fw-bold mb-1">
-                                    {% if msg.sender == user %}Ty{% else %}{{ msg.sender.first_name }}{% endif %}
-                                </div>
-                                <div class="text-break">{{ msg.text }}</div>
-                                <div class="text-end mt-1" style="font-size: 0.7rem; opacity: 0.8;">
-                                    {{ msg.sent_at|date:"H:i" }}
-                                </div>
-                            </div>
-                        </div>
-                    {% empty %}
-                        <div class="text-center text-muted mt-5">
-                            <i class="fas fa-comments fa-3x mb-3 opacity-25"></i>
-                            <p>Brak wiadomości. Przywitaj się!</p>
-                        </div>
-                    {% endfor %}
+ <!-- card-body -->
+<div class="card-body bg-light" id="chat-box" style="height: 400px; overflow-y: auto;">
+    {% for msg in messages %}
+        <div class="mb-3 d-flex {% if msg.sender == user %}justify-content-end{% else %}justify-content-start{% endif %}">
+            <div class="p-3 rounded-3 shadow-sm {% if msg.sender == user %}bg-primary text-white{% else %}bg-white text-dark{% endif %}" style="max-width: 75%;">
+                <div class="small fw-bold mb-1">
+                    {% if msg.sender == user %}Ty{% else %}{{ msg.sender.first_name }}{% endif %}
                 </div>
-
-                <div class="card-footer bg-white border-top-0 p-3">
-                    <form method="post" class="row g-2">
-                        {% csrf_token %}
-                        <div class="col">
-                            <input type="text" name="text" class="form-control" placeholder="Wpisz wiadomość..." required id="id_text">
-                        </div>
-                        <div class="col-auto">
-                            <button type="submit" class="btn btn-primary px-4">
-                                <i class="fas fa-paper-plane"></i>
-                            </button>
-                        </div>
-                    </form>
+                <div class="text-break">{{ msg.text }}</div>
+                <div class="text-end mt-1" style="font-size: 0.7rem; opacity: 0.8;">
+                    {{ msg.sent_at|date:"H:i" }}
                 </div>
             </div>
+        </div>
+    {% empty %}
+        <div class="text-center text-muted mt-5">
+            <i class="fas fa-comments fa-3x mb-3 opacity-25"></i>
+            <p>Brak wiadomości. Przywitaj się!</p>
+        </div>
+    {% endfor %}
+</div>
+
+<!-- card-footer -->
+<div class="card-footer bg-white border-top-0 p-3">
+    <form id="chat-form" class="row g-2">
+        {% csrf_token %}
+        <div class="col">
+            <input type="text" name="text" class="form-control" placeholder="Wpisz wiadomość..." required id="message-input">
+        </div>
+        <div class="col-auto">
+            <button type="submit" class="btn btn-primary px-4">
+                <i class="fas fa-paper-plane"></i>
+            </button>
+        </div>
+    </form>
+</div>
         {% else %}
             <div class="card shadow-sm border-0 h-100">
                 <div class="card-body text-center py-5">
@@ -95,10 +96,36 @@
 
 {% block extra_js %}
 <script>
-    // Scroll to bottom of chat
-    const chatMessages = document.getElementById('chat-messages');
-    if (chatMessages) {
-        chatMessages.scrollTop = chatMessages.scrollHeight;
-    }
+const chatBox = document.getElementById("chat-box");
+const socket = new WebSocket(`ws://${window.location.host}/ws/chat/{{ selected_student.id }}/`);
+
+socket.onmessage = function(e) {
+    const data = JSON.parse(e.data);
+
+    const msgDiv = document.createElement("div");
+    msgDiv.className = "mb-3 d-flex " + (data.sender == "{{ user.email }}" ? "justify-content-end" : "justify-content-start");
+
+    const innerDiv = document.createElement("div");
+    innerDiv.className = "p-3 rounded-3 shadow-sm " + (data.sender == "{{ user.email }}" ? "bg-primary text-white" : "bg-white text-dark");
+    innerDiv.style.maxWidth = "75%";
+
+    innerDiv.innerHTML = `<div class="small fw-bold mb-1">${data.sender == "{{ user.email }}" ? "Ty" : data.sender}</div>
+                          <div class="text-break">${data.message}</div>
+                          <div class="text-end mt-1" style="font-size:0.7rem;opacity:0.8;">teraz</div>`;
+
+    msgDiv.appendChild(innerDiv);
+    chatBox.appendChild(msgDiv);
+
+    chatBox.scrollTop = chatBox.scrollHeight;
+};
+
+document.getElementById("chat-form").onsubmit = function(e) {
+    e.preventDefault();
+    const input = document.getElementById("message-input");
+    if (input.value.trim() === "") return;
+
+    socket.send(JSON.stringify({message: input.value}));
+    input.value = "";
+};
 </script>
 {% endblock %}
