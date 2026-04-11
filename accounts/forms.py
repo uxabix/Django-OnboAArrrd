@@ -7,6 +7,12 @@ from .models import Roles
 CustomUser = get_user_model()
 
 
+def apply_bootstrap_control_widgets(form):
+    """Add Bootstrap form-control class to all fields on auth-style forms."""
+    for field in form.fields.values():
+        field.widget.attrs.setdefault("class", "form-control")
+
+
 def mentor_student_roles_queryset():
     """Roles that HR may assign: Mentor and Student (seed names, case-insensitive)."""
     return Roles.objects.filter(
@@ -30,16 +36,6 @@ class HrAddEmployeeForm(forms.Form):
         label="Nazwisko",
         max_length=150,
         widget=forms.TextInput(attrs={"class": "form-control"}),
-    )
-    password1 = forms.CharField(
-        label="Hasło",
-        strip=False,
-        widget=forms.PasswordInput(attrs={"class": "form-control", "autocomplete": "new-password"}),
-    )
-    password2 = forms.CharField(
-        label="Powtórz hasło",
-        strip=False,
-        widget=forms.PasswordInput(attrs={"class": "form-control", "autocomplete": "new-password"}),
     )
     role = forms.ModelChoiceField(
         label="Rola",
@@ -69,9 +65,6 @@ class HrAddEmployeeForm(forms.Form):
 
     def clean(self):
         data = super().clean()
-        p1, p2 = data.get("password1"), data.get("password2")
-        if p1 and p2 and p1 != p2:
-            self.add_error("password2", "Hasła muszą być identyczne.")
         role = data.get("role")
         mentor = data.get("mentor")
         if role and role.name.strip().lower() != "student" and mentor:

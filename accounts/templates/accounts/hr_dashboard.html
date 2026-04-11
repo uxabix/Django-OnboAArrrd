@@ -2,6 +2,52 @@
 
 {% block title %}Panel HR{% endblock %}
 
+{% block extra_css %}
+<style>
+    /* HR user list: one visual height for all compact controls */
+    .hr-user-actions {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 0.5rem;
+    }
+    .hr-user-actions .hr-action-row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 0.5rem;
+    }
+    .hr-user-actions .hr-action-h {
+        min-height: 2.375rem;
+        height: 2.375rem;
+        box-sizing: border-box;
+    }
+    .hr-user-actions .btn.btn-sm.hr-action-h {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding-top: 0;
+        padding-bottom: 0;
+    }
+    .hr-user-actions .form-select.form-select-sm.hr-role-select {
+        /* Closed select wide enough for longest assignable role label (PL: Mentor / Uczeń) */
+        width: auto;
+        min-width: 11rem;
+        max-width: 100%;
+        padding-top: 0.25rem;
+        padding-bottom: 0.25rem;
+        line-height: 1.25;
+    }
+    @supports (width: max-content) {
+        .hr-user-actions .form-select.form-select-sm.hr-role-select {
+            width: max-content;
+            min-width: 11rem;
+        }
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
     <h1 class="h3 mb-0"><i class="fas fa-briefcase me-2 text-primary"></i>Panel kadrowy (HR)</h1>
@@ -23,8 +69,9 @@
 {% endif %}
 
 <p class="text-muted mb-3">
-    Lista pracowników: wyszukiwanie, filtry, sortowanie i stronicowanie. Możesz zmieniać rolę (Mentor / Uczeń),
-    wyłączać konta (zwolnienie) oraz ponownie je włączać.
+    Lista pracowników: wyszukiwanie, filtry, sortowanie i stronicowanie. Hasło tymczasowe z HR jest widoczne tylko,
+    dopóki pracownik nie ustawi własnego hasła. Możesz zresetować hasło innym użytkownikom; swoje hasło zmieniasz
+    przez „Zmień swoje hasło” (bez hasła jednorazowego).
 </p>
 
 <div class="card shadow-sm mb-3">
@@ -89,6 +136,8 @@
                     <th scope="col">Status pracownika</th>
                     <th scope="col">Mentor</th>
                     <th scope="col">Data utworzenia</th>
+                    <th scope="col">Hasło tymczasowe (HR)</th>
+                    <th scope="col">Własne hasło ustawione</th>
                     <th scope="col" class="text-end">Akcje</th>
                 </tr>
             </thead>
@@ -121,45 +170,72 @@
                         {% endif %}
                     </td>
                     <td><small>{{ emp.created_at|date:"Y-m-d H:i" }}</small></td>
+                    <td>
+                        {% if emp.hr_temporary_password_plain %}
+                            <code class="small user-select-all">{{ emp.hr_temporary_password_plain }}</code>
+                        {% else %}
+                            <span class="text-muted">—</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if emp.password_is_user_chosen %}
+                            <span class="badge bg-success">Tak</span>
+                        {% else %}
+                            <span class="badge bg-warning text-dark">Nie</span>
+                        {% endif %}
+                    </td>
                     <td class="text-end">
-                        {% if emp.id in manageable_ids %}
-                            <div class="d-flex flex-column flex-xl-row gap-2 justify-content-end align-items-stretch align-items-xl-center">
-                                <form method="post" action="{% url 'accounts:hr_change_role' emp.id %}" class="d-flex gap-1 align-items-center flex-wrap justify-content-end">
+                        <div class="hr-user-actions">
+                            {% if emp.id == request.user.id %}
+                                <div class="hr-action-row">
+                                    <a href="{% url 'accounts:hr_change_own_password' %}" class="btn btn-sm btn-outline-secondary text-nowrap hr-action-h">Zmień swoje hasło</a>
+                                </div>
+                            {% endif %}
+                            {% if emp.id in manageable_ids %}
+                                <form method="post" action="{% url 'accounts:hr_change_role' emp.id %}" class="hr-action-row mb-0">
                                     {% csrf_token %}
                                     {% include "accounts/includes/hr_list_preservation.html" %}
-                                    <select name="role" class="form-select form-select-sm" required style="max-width: 11rem;" aria-label="Wybierz rolę">
+                                    <select name="role" class="form-select form-select-sm hr-role-select hr-action-h" required aria-label="Wybierz rolę">
                                         {% for r in assignable_roles %}
                                             <option value="{{ r.pk }}"{% if emp.role_id == r.pk %} selected{% endif %}>
                                                 {% include "accounts/includes/hr_role_pl.html" with role=r only %}
                                             </option>
                                         {% endfor %}
                                     </select>
-                                    <button type="submit" class="btn btn-sm btn-outline-primary">Zmień rolę</button>
+                                    <button type="submit" class="btn btn-sm btn-outline-primary hr-action-h">Zmień rolę</button>
                                 </form>
-                                {% if emp.is_active %}
-                                <form method="post" action="{% url 'accounts:hr_terminate_employee' emp.id %}" class="d-inline"
-                                      onsubmit="return confirm('Czy na pewno chcesz zwolnić tego pracownika? Konto zostanie wyłączone.');">
-                                    {% csrf_token %}
-                                    {% include "accounts/includes/hr_list_preservation.html" %}
-                                    <button type="submit" class="btn btn-sm btn-outline-danger">Zwolnij</button>
-                                </form>
-                                {% else %}
-                                <form method="post" action="{% url 'accounts:hr_reactivate_employee' emp.id %}" class="d-inline"
-                                      onsubmit="return confirm('Czy na pewno chcesz ponownie włączyć to konto?');">
-                                    {% csrf_token %}
-                                    {% include "accounts/includes/hr_list_preservation.html" %}
-                                    <button type="submit" class="btn btn-sm btn-outline-success">Włącz konto</button>
-                                </form>
-                                {% endif %}
-                            </div>
-                        {% else %}
-                            <span class="text-muted small">—</span>
-                        {% endif %}
+                                <div class="hr-action-row">
+                                    <form method="post" action="{% url 'accounts:hr_reset_user_password' emp.id %}" class="d-inline mb-0"
+                                          onsubmit="return confirm('Wygenerować nowe hasło tymczasowe? Użytkownik będzie musiał ustawić własne hasło przy następnym logowaniu.');">
+                                        {% csrf_token %}
+                                        {% include "accounts/includes/hr_list_preservation.html" %}
+                                        <button type="submit" class="btn btn-sm btn-outline-warning text-nowrap hr-action-h">Reset hasła</button>
+                                    </form>
+                                    {% if emp.is_active %}
+                                    <form method="post" action="{% url 'accounts:hr_terminate_employee' emp.id %}" class="d-inline mb-0"
+                                          onsubmit="return confirm('Czy na pewno chcesz zwolnić tego pracownika? Konto zostanie wyłączone.');">
+                                        {% csrf_token %}
+                                        {% include "accounts/includes/hr_list_preservation.html" %}
+                                        <button type="submit" class="btn btn-sm btn-outline-danger hr-action-h">Zwolnij</button>
+                                    </form>
+                                    {% else %}
+                                    <form method="post" action="{% url 'accounts:hr_reactivate_employee' emp.id %}" class="d-inline mb-0"
+                                          onsubmit="return confirm('Czy na pewno chcesz ponownie włączyć to konto?');">
+                                        {% csrf_token %}
+                                        {% include "accounts/includes/hr_list_preservation.html" %}
+                                        <button type="submit" class="btn btn-sm btn-outline-success hr-action-h">Włącz konto</button>
+                                    </form>
+                                    {% endif %}
+                                </div>
+                            {% elif emp.id != request.user.id %}
+                                <span class="text-muted small">—</span>
+                            {% endif %}
+                        </div>
                     </td>
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="8" class="text-center text-muted py-4">Brak pracowników spełniających kryteria.</td>
+                    <td colspan="10" class="text-center text-muted py-4">Brak pracowników spełniających kryteria.</td>
                 </tr>
                 {% endfor %}
             </tbody>

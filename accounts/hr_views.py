@@ -1,7 +1,9 @@
+import secrets
 from urllib.parse import urlencode
 
 from django.contrib import messages
-from django.contrib.auth import get_user_model
+from django.contrib.auth import get_user_model, update_session_auth_hash
+from django.contrib.auth.forms import PasswordChangeForm
 from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import Q
@@ -10,8 +12,13 @@ from django.urls import reverse
 from django.utils.dateparse import parse_date
 from django.views.decorators.http import require_http_methods
 
-from .decorators import hr_required
-from .forms import HrAddEmployeeForm, HrChangeRoleForm, mentor_student_roles_queryset
+from .decorators import hr_required, user_is_administrator_role
+from .forms import (
+    HrAddEmployeeForm,
+    HrChangeRoleForm,
+    apply_bootstrap_control_widgets,
+    mentor_student_roles_queryset,
+)
 from .models import Roles
 
 CustomUserModel = get_user_model()
@@ -35,6 +42,11 @@ _HR_SORT_FIELDS = {
 _HR_PAGE_SIZE = 15
 
 
+def _generate_hr_temporary_password():
+    """Cryptographically strong one-time password for HR handoff (stored as plain text per product rules)."""
+    return secrets.token_urlsafe(16)
+
+
 def _clear_mentor_links(user):
     """Detach mentees when mentor is demoted or terminated."""
     CustomUserModel.objects.filter(mentor=user).update(mentor=None)
@@ -48,15 +60,20 @@ def _role_name_lower(role):
 
 def _hr_can_manage_actor(actor, target):
     """
-    HR may not manage superusers, HR, Administrator, or themselves
-    (terminate, reactivate, role change).
+    Terminate, reactivate, role change, HR temporary password reset for another user.
+    Superuser: any user except self. Administrator role: any non-superuser except self.
+    Plain HR: not superuser, not HR/Admin roles, not self.
     """
-    if target.is_superuser:
+    if actor.pk == target.pk:
         return False
+    if target.is_superuser and not actor.is_superuser:
+        return False
+    if actor.is_superuser:
+        return True
+    if user_is_administrator_role(actor):
+        return True
     rn = _role_name_lower(getattr(target, "role", None))
     if rn in ("hr", "admin", "administrator"):
-        return False
-    if target.pk == actor.pk:
         return False
     return True
 
@@ -183,25 +200,32 @@ def hr_dashboard(request):
 @hr_required
 @require_http_methods(["GET", "POST"])
 def hr_add_employee(request):
-    """Create a new Mentor or Student account."""
+    """Create a new Mentor or Student account with a random password (shown in HR panel)."""
     if request.method == "POST":
         form = HrAddEmployeeForm(request.POST)
         if form.is_valid():
             data = form.cleaned_data
             role = data["role"]
             mentor = data["mentor"] if role.name.strip().lower() == "student" else None
+            plain = _generate_hr_temporary_password()
             user = CustomUserModel.objects.create_user(
                 email=data["email"],
-                password=data["password1"],
+                password=plain,
                 first_name=data["first_name"],
                 last_name=data["last_name"],
                 role=role,
                 mentor=mentor,
                 status=CustomUserModel.UserStatus.ACTIVE,
+                password_is_user_chosen=False,
+                hr_temporary_password_plain=plain,
             )
             user.is_active = True
             user.save(update_fields=["is_active"])
-            messages.success(request, f"Dodano pracownika: {user.email}.")
+            messages.success(
+                request,
+                f"Dodano pracownika: {user.email}. Hasło tymczasowe: {plain} "
+                "(widoczne także na liście do czasu pierwszej zmiany hasła przez pracownika).",
+            )
             return redirect("accounts:hr_dashboard")
     else:
         form = HrAddEmployeeForm()
@@ -220,7 +244,8 @@ def hr_terminate_employee(request, user_id):
     target.mentor = None
     target.status = CustomUserModel.UserStatus.INACTIVE
     target.is_active = False
-    target.save(update_fields=["mentor", "status", "is_active"])
+    target.hr_temporary_password_plain = ""
+    target.save(update_fields=["mentor", "status", "is_active", "hr_temporary_password_plain"])
     messages.success(request, f"Pracownik {target.email} został zwolniony (konto wyłączone).")
     return _redirect_hr_dashboard(request)
 
@@ -267,3 +292,50 @@ def hr_change_role(request, user_id):
         f"Zaktualizowano rolę użytkownika {target.email}.",
     )
     return _redirect_hr_dashboard(request)
+
+
+@hr_required
+@require_http_methods(["POST"])
+def hr_reset_user_password(request, user_id):
+    """Issue a new temporary password; user must set their own on next login."""
+    target = get_object_or_404(CustomUserModel, pk=user_id)
+    if not _hr_can_manage_actor(request.user, target):
+        messages.error(request, "Nie możesz zresetować hasła temu użytkownikowi.")
+        return _redirect_hr_dashboard(request)
+    plain = _generate_hr_temporary_password()
+    target.set_password(plain)
+    target.hr_temporary_password_plain = plain
+    target.password_is_user_chosen = False
+    target.save(
+        update_fields=["password", "hr_temporary_password_plain", "password_is_user_chosen"]
+    )
+    messages.success(
+        request,
+        f"Nowe hasło tymczasowe dla {target.email}: {plain}",
+    )
+    return _redirect_hr_dashboard(request)
+
+
+@hr_required
+@require_http_methods(["GET", "POST"])
+def hr_change_own_password(request):
+    """HR panel user changes their own password (current password required); no temporary password flow."""
+    user = request.user
+    if request.method == "POST":
+        form = PasswordChangeForm(user, request.POST)
+        if form.is_valid():
+            form.save()
+            user.hr_temporary_password_plain = ""
+            user.password_is_user_chosen = True
+            user.save(update_fields=["hr_temporary_password_plain", "password_is_user_chosen"])
+            update_session_auth_hash(request, user)
+            messages.success(request, "Twoje hasło zostało zmienione.")
+            return redirect("accounts:hr_dashboard")
+    else:
+        form = PasswordChangeForm(user)
+    apply_bootstrap_control_widgets(form)
+    return render(
+        request,
+        "accounts/hr_change_own_password.html",
+        {"form": form},
+    )
