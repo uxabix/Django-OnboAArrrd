@@ -81,3 +81,30 @@ class HrChangeRoleForm(forms.Form):
         empty_label=None,
         widget=forms.Select(attrs={"class": "form-select form-select-sm"}),
     )
+
+
+class HrChangeEmailForm(forms.Form):
+    """Update employee login email from the HR panel (Polish labels)."""
+
+    email = forms.EmailField(
+        label="Adres e-mail",
+        widget=forms.EmailInput(
+            attrs={
+                "class": "form-control form-control-sm hr-email-input",
+                "autocomplete": "email",
+            }
+        ),
+    )
+
+    def __init__(self, *args, edited_user_pk=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.edited_user_pk = edited_user_pk
+
+    def clean_email(self):
+        email = self.cleaned_data["email"].strip().lower()
+        qs = CustomUser.objects.filter(email__iexact=email)
+        if self.edited_user_pk is not None:
+            qs = qs.exclude(pk=self.edited_user_pk)
+        if qs.exists():
+            raise forms.ValidationError("Użytkownik z tym adresem e-mail już istnieje.")
+        return email

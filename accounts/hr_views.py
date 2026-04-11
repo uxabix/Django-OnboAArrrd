@@ -15,6 +15,7 @@ from django.views.decorators.http import require_http_methods
 from .decorators import hr_required, user_is_administrator_role
 from .forms import (
     HrAddEmployeeForm,
+    HrChangeEmailForm,
     HrChangeRoleForm,
     apply_bootstrap_control_widgets,
     mentor_student_roles_queryset,
@@ -290,6 +291,31 @@ def hr_change_role(request, user_id):
     messages.success(
         request,
         f"Zaktualizowano rolę użytkownika {target.email}.",
+    )
+    return _redirect_hr_dashboard(request)
+
+
+@hr_required
+@require_http_methods(["POST"])
+def hr_change_email(request, user_id):
+    """Update employee email (USERNAME_FIELD); same access rules as role change."""
+    target = get_object_or_404(CustomUserModel, pk=user_id)
+    if not _hr_can_manage_actor(request.user, target):
+        messages.error(request, "Nie możesz zmienić adresu e-mail tego użytkownika.")
+        return _redirect_hr_dashboard(request)
+    form = HrChangeEmailForm(request.POST, edited_user_pk=target.pk)
+    if not form.is_valid():
+        err_msg = "Nieprawidłowy adres e-mail lub adres jest już zajęty."
+        if form.errors.get("email"):
+            err_msg = form.errors["email"][0]
+        messages.error(request, err_msg)
+        return _redirect_hr_dashboard(request)
+    old_email = target.email
+    target.email = form.cleaned_data["email"]
+    target.save(update_fields=["email"])
+    messages.success(
+        request,
+        f"Zmieniono adres e-mail z „{old_email}” na „{target.email}”.",
     )
     return _redirect_hr_dashboard(request)
 

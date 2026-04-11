@@ -45,6 +45,12 @@
             min-width: 11rem;
         }
     }
+    .hr-user-actions .form-control.form-control-sm.hr-email-input {
+        min-height: 2.375rem;
+        height: 2.375rem;
+        min-width: 14rem;
+        max-width: min(22rem, 100%);
+    }
 </style>
 {% endblock %}
 
@@ -69,9 +75,9 @@
 {% endif %}
 
 <p class="text-muted mb-3">
-    Lista pracowników: wyszukiwanie, filtry, sortowanie i stronicowanie. Hasło tymczasowe z HR jest widoczne tylko,
-    dopóki pracownik nie ustawi własnego hasła. Możesz zresetować hasło innym użytkownikom; swoje hasło zmieniasz
-    przez „Zmień swoje hasło” (bez hasła jednorazowego).
+    Lista pracowników: wyszukiwanie, filtry, sortowanie i stronicowanie. Możesz zmieniać adres e-mail logowania,
+    rolę, resetować hasło oraz dezaktywować konta. Hasło tymczasowe z HR jest widoczne do pierwszej zmiany hasła
+    przez pracownika; swoje hasło zmieniasz przez „Zmień swoje hasło” (bez hasła jednorazowego).
 </p>
 
 <div class="card shadow-sm mb-3">
@@ -192,6 +198,14 @@
                                 </div>
                             {% endif %}
                             {% if emp.id in manageable_ids %}
+                                <form method="post" action="{% url 'accounts:hr_change_email' emp.id %}" class="hr-action-row mb-0">
+                                    {% csrf_token %}
+                                    {% include "accounts/includes/hr_list_preservation.html" %}
+                                    <input type="email" name="email" value="{{ emp.email }}" required maxlength="254"
+                                           class="form-control form-control-sm hr-email-input hr-action-h"
+                                           aria-label="Adres e-mail pracownika">
+                                    <button type="submit" class="btn btn-sm btn-outline-secondary hr-action-h">Zapisz e-mail</button>
+                                </form>
                                 <form method="post" action="{% url 'accounts:hr_change_role' emp.id %}" class="hr-action-row mb-0">
                                     {% csrf_token %}
                                     {% include "accounts/includes/hr_list_preservation.html" %}
