@@ -10,6 +10,11 @@
                 <h1 class="card-title mb-4">Witaj, {{ user.first_name|default:"Użytkowniku" }}!</h1>
                 
                 <div class="d-grid gap-3 col-lg-6 mx-auto mt-4">
+                    {% if user_is_hr %}
+                        <a href="{% url 'accounts:hr_dashboard' %}" class="btn btn-success btn-lg">
+                            <i class="fas fa-briefcase me-2"></i>Panel kadrowy (HR)
+                        </a>
+                    {% endif %}
                     <a href="{% url 'onboarding:user_tasks_list' %}" class="btn btn-primary btn-lg">
                         <i class="fas fa-tasks me-2"></i>Moje zadania
                     </a>

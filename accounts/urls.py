@@ -1,10 +1,14 @@
 from django.urls import path
-from . import views
+
+from . import hr_views, views
 
 app_name = "accounts"
 
 urlpatterns = [
-    # przykładowe ścieżki:
-    path('', views.home, name='home'),
-    path('accounts/logged/', views.logged, name='logged'),
-    ]
+    path("", views.home, name="home"),
+    path("accounts/logged/", views.logged, name="logged"),
+    path("hr/", hr_views.hr_dashboard, name="hr_dashboard"),
+    path("hr/dodaj/", hr_views.hr_add_employee, name="hr_add_employee"),
+    path("hr/zwolnij/<int:user_id>/", hr_views.hr_terminate_employee, name="hr_terminate_employee"),
+    path("hr/rola/<int:user_id>/", hr_views.hr_change_role, name="hr_change_role"),
+]
