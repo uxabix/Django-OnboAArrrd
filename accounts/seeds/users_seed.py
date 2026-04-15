@@ -10,9 +10,32 @@ def run(count=10, group: Group = None):
 
     mentor_role = next((r for r in roles if r.name.lower() == "mentor"), None)
     student_role = next((r for r in roles if r.name.lower() == "student"), None)
+    hr_role = next((r for r in roles if r.name.lower() == "hr"), None)
 
     users = []
     test_accounts = []
+
+    # Test HR account (panel kadrowy)
+    if hr_role:
+        hr_user = CustomUser.objects.create_user(
+            email="hr@test.com",
+            password="hr12345",
+            first_name="Anna",
+            last_name="Kadry",
+            role=hr_role,
+            status=CustomUser.UserStatus.ACTIVE,
+        )
+        hr_user.is_active = True
+        hr_user.save(update_fields=["is_active"])
+        users.append(hr_user)
+        test_accounts.append({
+            "email": "hr@test.com",
+            "password": "hr12345",
+            "role": "HR",
+            "name": "Anna Kadry",
+        })
+        if group:
+            hr_user.groups.add(group)
 
     # Create test mentors with simple password
     test_mentors_data = [
@@ -112,6 +135,11 @@ def run(count=10, group: Group = None):
     print("\nSTUDENTS:")
     for acc in test_accounts:
         if acc["role"] == "Student":
+            print(f"  Email: {acc['email']:<25} Password: {acc['password']:<15} ({acc['name']})")
+
+    print("\nHR:")
+    for acc in test_accounts:
+        if acc["role"] == "HR":
             print(f"  Email: {acc['email']:<25} Password: {acc['password']:<15} ({acc['name']})")
     print("="*70 + "\n")
 
