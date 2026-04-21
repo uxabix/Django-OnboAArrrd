@@ -80,6 +80,10 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
 
+    # Password lifecycle: HR-generated one-time password shown until user sets their own (see HR panel + middleware).
+    password_is_user_chosen = models.BooleanField(default=True)
+    hr_temporary_password_plain = models.CharField(max_length=128, blank=True, default="")
+
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = ["first_name", "last_name"]
 

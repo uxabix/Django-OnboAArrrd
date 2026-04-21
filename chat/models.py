@@ -1,8 +1,10 @@
 from django.db import models
 from django.utils import timezone
+from django.contrib.auth import get_user_model
 
 from OnboAArrrd import settings
 
+CustomUser = get_user_model()
 # Create your models here.
 class Messages(models.Model):
     message_id = models.BigAutoField(primary_key=True)

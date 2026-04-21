@@ -1,0 +1,288 @@
+{% extends "base.html" %}
+
+{% block title %}Panel HR{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* HR user list: one visual height for all compact controls */
+    .hr-user-actions {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 0.5rem;
+    }
+    .hr-user-actions .hr-action-row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 0.5rem;
+    }
+    .hr-user-actions .hr-action-h {
+        min-height: 2.375rem;
+        height: 2.375rem;
+        box-sizing: border-box;
+    }
+    .hr-user-actions .btn.btn-sm.hr-action-h {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding-top: 0;
+        padding-bottom: 0;
+    }
+    .hr-user-actions .form-select.form-select-sm.hr-role-select {
+        /* Closed select wide enough for longest assignable role label (PL: Mentor / Uczeń) */
+        width: auto;
+        min-width: 11rem;
+        max-width: 100%;
+        padding-top: 0.25rem;
+        padding-bottom: 0.25rem;
+        line-height: 1.25;
+    }
+    @supports (width: max-content) {
+        .hr-user-actions .form-select.form-select-sm.hr-role-select {
+            width: max-content;
+            min-width: 11rem;
+        }
+    }
+    .hr-user-actions .form-control.form-control-sm.hr-email-input {
+        min-height: 2.375rem;
+        height: 2.375rem;
+        min-width: 14rem;
+        max-width: min(22rem, 100%);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
+    <h1 class="h3 mb-0"><i class="fas fa-briefcase me-2 text-primary"></i>Panel kadrowy (HR)</h1>
+    <a href="{% url 'accounts:hr_add_employee' %}" class="btn btn-primary">
+        <i class="fas fa-user-plus me-1"></i>Dodaj pracownika
+    </a>
+</div>
+
+{% if messages %}
+    {% for message in messages %}
+        {% if 'error' in message.tags %}<div class="alert alert-danger alert-dismissible fade show" role="alert">
+        {% elif 'success' in message.tags %}<div class="alert alert-success alert-dismissible fade show" role="alert">
+        {% elif 'warning' in message.tags %}<div class="alert alert-warning alert-dismissible fade show" role="alert">
+        {% else %}<div class="alert alert-info alert-dismissible fade show" role="alert">{% endif %}
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Zamknij"></button>
+        </div>
+    {% endfor %}
+{% endif %}
+
+<p class="text-muted mb-3">
+    Lista pracowników: wyszukiwanie, filtry, sortowanie i stronicowanie. Możesz zmieniać adres e-mail logowania,
+    rolę, resetować hasło oraz dezaktywować konta. Hasło tymczasowe z HR jest widoczne do pierwszej zmiany hasła
+    przez pracownika; swoje hasło zmieniasz przez „Zmień swoje hasło” (bez hasła jednorazowego).
+</p>
+
+<div class="card shadow-sm mb-3">
+    <div class="card-header bg-light">
+        <h2 class="h6 mb-0"><i class="fas fa-filter me-2"></i>Filtry i sortowanie</h2>
+    </div>
+    <div class="card-body">
+        <form method="get" action="{% url 'accounts:hr_dashboard' %}" class="row g-3 align-items-end">
+            <div class="col-md-4 col-lg-3">
+                <label class="form-label" for="hr_q">Szukaj (imię, nazwisko, e-mail)</label>
+                <input type="search" class="form-control" id="hr_q" name="q" value="{{ filter_q }}" maxlength="200" placeholder="Wpisz tekst…">
+            </div>
+            <div class="col-md-4 col-lg-2">
+                <label class="form-label" for="hr_role">Rola</label>
+                <select class="form-select" id="hr_role" name="filter_role">
+                    <option value="">Wszystkie role</option>
+                    {% for r in all_roles %}
+                        <option value="{{ r.pk }}"{% if filter_role_id == r.pk %} selected{% endif %}>
+                            {% include "accounts/includes/hr_role_pl.html" with role=r only %}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-4 col-lg-2">
+                <label class="form-label" for="hr_from">Data utworzenia od</label>
+                <input type="date" class="form-control" id="hr_from" name="created_from" value="{{ filter_created_from }}">
+            </div>
+            <div class="col-md-4 col-lg-2">
+                <label class="form-label" for="hr_to">Data utworzenia do</label>
+                <input type="date" class="form-control" id="hr_to" name="created_to" value="{{ filter_created_to }}">
+            </div>
+            <div class="col-md-8 col-lg-3">
+                <label class="form-label" for="hr_sort">Sortowanie</label>
+                <select class="form-select" id="hr_sort" name="sort">
+                    <option value="last_name"{% if filter_sort == "last_name" %} selected{% endif %}>Nazwisko A–Z</option>
+                    <option value="-last_name"{% if filter_sort == "-last_name" %} selected{% endif %}>Nazwisko Z–A</option>
+                    <option value="email"{% if filter_sort == "email" %} selected{% endif %}>E-mail A–Z</option>
+                    <option value="-email"{% if filter_sort == "-email" %} selected{% endif %}>E-mail Z–A</option>
+                    <option value="created_at"{% if filter_sort == "created_at" %} selected{% endif %}>Data utworzenia (rosnąco)</option>
+                    <option value="-created_at"{% if filter_sort == "-created_at" %} selected{% endif %}>Data utworzenia (malejąco)</option>
+                    <option value="role"{% if filter_sort == "role" %} selected{% endif %}>Rola A–Z</option>
+                    <option value="-role"{% if filter_sort == "-role" %} selected{% endif %}>Rola Z–A</option>
+                </select>
+            </div>
+            <div class="col-12 col-lg-auto d-flex flex-wrap gap-2">
+                <button type="submit" class="btn btn-primary"><i class="fas fa-search me-1"></i>Zastosuj</button>
+                <a href="{% url 'accounts:hr_dashboard' %}" class="btn btn-outline-secondary">Wyczyść filtry</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card shadow-sm">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th scope="col">Imię i nazwisko</th>
+                    <th scope="col">E-mail</th>
+                    <th scope="col">Rola</th>
+                    <th scope="col">Status konta</th>
+                    <th scope="col">Status pracownika</th>
+                    <th scope="col">Mentor</th>
+                    <th scope="col">Data utworzenia</th>
+                    <th scope="col">Hasło tymczasowe (HR)</th>
+                    <th scope="col">Własne hasło ustawione</th>
+                    <th scope="col" class="text-end">Akcje</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for emp in employees %}
+                <tr>
+                    <td>{{ emp.first_name|default:"" }} {{ emp.last_name|default:"" }}</td>
+                    <td><small>{{ emp.email }}</small></td>
+                    <td>{% include "accounts/includes/hr_role_pl.html" with role=emp.role only %}</td>
+                    <td>
+                        {% if emp.is_active %}
+                            <span class="badge bg-success">Aktywne</span>
+                        {% else %}
+                            <span class="badge bg-secondary">Wyłączone</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if emp.status == "active" %}
+                            <span class="badge bg-primary">Aktywny</span>
+                        {% else %}
+                            <span class="badge bg-secondary">Nieaktywny</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if emp.mentor %}
+                            {{ emp.mentor.first_name }} {{ emp.mentor.last_name }}
+                            <br><small class="text-muted">{{ emp.mentor.email }}</small>
+                        {% else %}
+                            <span class="text-muted">—</span>
+                        {% endif %}
+                    </td>
+                    <td><small>{{ emp.created_at|date:"Y-m-d H:i" }}</small></td>
+                    <td>
+                        {% if emp.hr_temporary_password_plain %}
+                            <code class="small user-select-all">{{ emp.hr_temporary_password_plain }}</code>
+                        {% else %}
+                            <span class="text-muted">—</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if emp.password_is_user_chosen %}
+                            <span class="badge bg-success">Tak</span>
+                        {% else %}
+                            <span class="badge bg-warning text-dark">Nie</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-end">
+                        <div class="hr-user-actions">
+                            {% if emp.id == request.user.id %}
+                                <div class="hr-action-row">
+                                    <a href="{% url 'accounts:hr_change_own_password' %}" class="btn btn-sm btn-outline-secondary text-nowrap hr-action-h">Zmień swoje hasło</a>
+                                </div>
+                            {% endif %}
+                            {% if emp.id in manageable_ids %}
+                                <form method="post" action="{% url 'accounts:hr_change_email' emp.id %}" class="hr-action-row mb-0">
+                                    {% csrf_token %}
+                                    {% include "accounts/includes/hr_list_preservation.html" %}
+                                    <input type="email" name="email" value="{{ emp.email }}" required maxlength="254"
+                                           class="form-control form-control-sm hr-email-input hr-action-h"
+                                           aria-label="Adres e-mail pracownika">
+                                    <button type="submit" class="btn btn-sm btn-outline-secondary hr-action-h">Zapisz e-mail</button>
+                                </form>
+                                <form method="post" action="{% url 'accounts:hr_change_role' emp.id %}" class="hr-action-row mb-0">
+                                    {% csrf_token %}
+                                    {% include "accounts/includes/hr_list_preservation.html" %}
+                                    <select name="role" class="form-select form-select-sm hr-role-select hr-action-h" required aria-label="Wybierz rolę">
+                                        {% for r in assignable_roles %}
+                                            <option value="{{ r.pk }}"{% if emp.role_id == r.pk %} selected{% endif %}>
+                                                {% include "accounts/includes/hr_role_pl.html" with role=r only %}
+                                            </option>
+                                        {% endfor %}
+                                    </select>
+                                    <button type="submit" class="btn btn-sm btn-outline-primary hr-action-h">Zmień rolę</button>
+                                </form>
+                                <div class="hr-action-row">
+                                    <form method="post" action="{% url 'accounts:hr_reset_user_password' emp.id %}" class="d-inline mb-0"
+                                          onsubmit="return confirm('Wygenerować nowe hasło tymczasowe? Użytkownik będzie musiał ustawić własne hasło przy następnym logowaniu.');">
+                                        {% csrf_token %}
+                                        {% include "accounts/includes/hr_list_preservation.html" %}
+                                        <button type="submit" class="btn btn-sm btn-outline-warning text-nowrap hr-action-h">Reset hasła</button>
+                                    </form>
+                                    {% if emp.is_active %}
+                                    <form method="post" action="{% url 'accounts:hr_terminate_employee' emp.id %}" class="d-inline mb-0"
+                                          onsubmit="return confirm('Czy na pewno chcesz zwolnić tego pracownika? Konto zostanie wyłączone.');">
+                                        {% csrf_token %}
+                                        {% include "accounts/includes/hr_list_preservation.html" %}
+                                        <button type="submit" class="btn btn-sm btn-outline-danger hr-action-h">Zwolnij</button>
+                                    </form>
+                                    {% else %}
+                                    <form method="post" action="{% url 'accounts:hr_reactivate_employee' emp.id %}" class="d-inline mb-0"
+                                          onsubmit="return confirm('Czy na pewno chcesz ponownie włączyć to konto?');">
+                                        {% csrf_token %}
+                                        {% include "accounts/includes/hr_list_preservation.html" %}
+                                        <button type="submit" class="btn btn-sm btn-outline-success hr-action-h">Włącz konto</button>
+                                    </form>
+                                    {% endif %}
+                                </div>
+                            {% elif emp.id != request.user.id %}
+                                <span class="text-muted small">—</span>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="10" class="text-center text-muted py-4">Brak pracowników spełniających kryteria.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% if page_obj.paginator.num_pages > 1 %}
+    <div class="card-footer bg-white d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <small class="text-muted">
+            Strona {{ page_obj.number }} z {{ page_obj.paginator.num_pages }} — wyników: {{ page_obj.paginator.count }}
+        </small>
+        <nav aria-label="Paginacja listy pracowników">
+            <ul class="pagination pagination-sm mb-0 flex-wrap">
+                {% if page_obj.has_previous %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if querystring_no_page %}&{{ querystring_no_page }}{% endif %}">Poprzednia</a>
+                </li>
+                {% else %}
+                <li class="page-item disabled"><span class="page-link">Poprzednia</span></li>
+                {% endif %}
+                {% if page_obj.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if querystring_no_page %}&{{ querystring_no_page }}{% endif %}">Następna</a>
+                </li>
+                {% else %}
+                <li class="page-item disabled"><span class="page-link">Następna</span></li>
+                {% endif %}
+            </ul>
+        </nav>
+    </div>
+    {% endif %}
+</div>
+
+<div class="mt-3">
+    <a href="{% url 'accounts:logged' %}" class="text-decoration-none"><i class="fas fa-arrow-left me-1"></i>Powrót do panelu głównego</a>
+</div>
+{% endblock %}
