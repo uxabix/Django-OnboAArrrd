@@ -84,6 +84,8 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     password_is_user_chosen = models.BooleanField(default=True)
     hr_temporary_password_plain = models.CharField(max_length=128, blank=True, default="")
 
+    stars = models.IntegerField(default=0, help_text="Liczba gwiazdek za ukończone zadania podopiecznych")
+
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = ["first_name", "last_name"]
 
@@ -91,7 +93,10 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
 
     def __str__(self):
         return self.email
-    
+
+    def get_stars_display(self):
+        return '⭐' * self.stars
+
     @property
     def is_mentor(self):
         return self.mentees.exists()

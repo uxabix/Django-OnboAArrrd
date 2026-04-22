@@ -23,6 +23,19 @@ def logged(request):
 
 
 @login_required
+def mentor_ranking(request):
+    from .models import CustomUser
+    from django.core.paginator import Paginator
+    mentors = CustomUser.objects.filter(
+    role__name='Mentor'
+    ).order_by('-stars').distinct()
+    paginator = Paginator(mentors, 10)
+    page_number = request.GET.get('page', 1)
+    page_obj = paginator.get_page(page_number)
+    return render(request, 'accounts/mentor_ranking.html', {'page_obj': page_obj})
+
+
+@login_required
 def force_first_password_change(request):
     """Block app usage until the user replaces an HR-issued temporary password."""
     user = request.user

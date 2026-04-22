@@ -4,6 +4,9 @@ from django.contrib.auth import get_user_model
 
 CustomUser = get_user_model()
 
+import django.db.models.signals as signals
+from django.dispatch import receiver
+
 
 class Badges(models.Model):
     badge_id = models.BigAutoField(primary_key=True)
@@ -213,3 +216,13 @@ class User_grade(models.Model):
     class Meta:
         verbose_name = "User Grade"
         verbose_name_plural = "User Grades"
+
+
+@receiver(signals.post_save, sender=Task_status)
+def update_mentor_stars(sender, instance, created, **kwargs):
+    if not created:
+        if instance.new_status == Task_status.Status.UKONCZONE:
+            mentor = instance.user_task.assigned_by
+            if mentor:
+                mentor.stars += 1
+                mentor.save(update_fields=['stars'])

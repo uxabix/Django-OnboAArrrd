@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+
+{% block title %}Ranking Mentorów - OnboAArrrd{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-10">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h2 class="mb-0">
+                        <i class="fas fa-trophy me-2"></i>Ranking Mentorów
+                    </h2>
+                </div>
+                <div class="card-body">
+                    {% if page_obj %}
+                    <div class="table-responsive">
+                        <table class="table table-hover table-striped">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>Miejsce</th>
+                                    <th>Mentor</th>
+                                    <th>Gwiazdki</th>
+                                    <th>Podopieczni</th>
+                                    <th>Ukończone zadania</th>
+                                    <th>Akcje</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for mentor in page_obj %}
+                                <tr>
+                                    <td>
+                                        <strong>#{{ page_obj.start_index|add:forloop.counter0 }}</strong>
+                                    </td>
+                                    <td>
+                                        <strong>{{ mentor.first_name }} {{ mentor.last_name }}</strong>
+                                        <br><small class="text-muted">{{ mentor.email }}</small>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-warning fs-5">{{ mentor.get_stars_display }}</span>
+                                        <br><small>{{ mentor.stars }}</small>
+                                    </td>
+                                    <td>{{ mentor.mentees.count }}</td>
+                                    <td>{{ mentor.stars }}</td>
+                                    <td>
+                                        <a href="{% url 'chat:chat_mentor' mentor.id %}" class="btn btn-sm btn-info">
+                                            <i class="fas fa-comments"></i>
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="6" class="text-center text-muted py-4">Brak mentorów w rankingu.</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+    {% include 'pagination.html' with page_obj=page_obj %}
+                    {% else %}
+                    <div class="text-center py-5">
+                        <i class="fas fa-star fa-3x text-warning mb-3"></i>
+                        <h4>Brak danych do wyświetlenia</h4>
+                        <p class="text-muted">Pierwsze gwiazdki będą przydzielane po ukończeniu zadań przez podopiecznych.</p>
+                    </div>
+                    {% endif %}
+
+                    <div class="mt-4">
+                        <a href="{% url 'accounts:logged' %}" class="btn btn-outline-secondary">
+                            <i class="fas fa-arrow-left me-1"></i> Powrót do panelu
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

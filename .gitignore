@@ -25,3 +25,5 @@ media/
 *.egg
 *.manifest
 *.spec
+TODO_ranking.md
+TODO.md
