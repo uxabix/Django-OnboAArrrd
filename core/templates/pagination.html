@@ -1,0 +1,43 @@
+
+{% if page_obj.paginator.num_pages > 1 %}
+<div class="d-flex justify-content-between align-items-center mt-4">
+    <div>
+        <small class="text-muted">
+            Pokazano {{ page_obj.start_index }}–{{ page_obj.end_index }} z {{ page_obj.paginator.count }} mentorów
+        </small>
+    </div>
+    <nav aria-label="Ranking pagination">
+        <ul class="pagination pagination-sm mb-0">
+            {% if page_obj.has_previous %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}">Poprzednia</a>
+                </li>
+            {% endif %}
+
+            {% for num in page_obj.paginator.page_range %}
+                {% if page_obj.number == num %}
+                    <li class="page-item active">
+                        <span class="page-link">{{ num }}</span>
+                    </li>
+                {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                    <li class="page-item">
+                        <a class="page-link" href="?{{ request.GET.urlencode|cut:'page=' }}page={{ num }}">{{ num }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+
+            {% if page_obj.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.next_page_number }}">Następna</a>
+                </li>
+            {% endif %}
+        </ul>
+    </nav>
+    <div>
+        <small class="text-muted">
+            Strona {{ page_obj.number }} z {{ page_obj.paginator.num_pages }}
+        </small>
+    </div>
+</div>
+{% endif %}
+

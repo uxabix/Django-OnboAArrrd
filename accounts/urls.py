@@ -6,6 +6,7 @@ app_name = "accounts"
 
 urlpatterns = [
     path("", views.home, name="home"),
+    path("ranking-mentorow/", views.mentor_ranking, name="mentor_ranking"),
     path("accounts/logged/", views.logged, name="logged"),
     path(
         "accounts/password-first-change/",
