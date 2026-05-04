@@ -1,0 +1,199 @@
+{% extends "base.html" %}
+
+{% block title %}Czat{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-3">
+        <div class="card shadow-sm">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="fas fa-users me-2"></i>Użytkownicy</h5>
+            </div>
+            <div class="card-body border-bottom">
+                <form method="get" class="d-flex gap-2">
+                    <input type="hidden" name="show" value="{{ show_mode }}">
+                    <input type="hidden" name="relation" value="{{ relation_filter }}">
+                    <input type="hidden" name="sort" value="{{ sort }}">
+                    <input
+                        type="search"
+                        name="q"
+                        value="{{ query }}"
+                        class="form-control form-control-sm"
+                        placeholder="Szukaj użytkownika..."
+                    >
+                    <button type="submit" class="btn btn-sm btn-primary">
+                        <i class="fas fa-search"></i>
+                    </button>
+                    {% if query %}
+                        <a href="{% url 'chat:chat_inbox' %}" class="btn btn-sm btn-outline-secondary">
+                            <i class="fas fa-times"></i>
+                        </a>
+                    {% endif %}
+                </form>
+                <form method="get" class="row g-2 mt-2">
+                    <div class="col-12">
+                        <div class="btn-group btn-group-sm w-100" role="group" aria-label="Tryb listy kontaktów">
+                            <input type="radio" class="btn-check" name="show" id="show-recent" value="recent" {% if show_mode == 'recent' %}checked{% endif %} onchange="this.form.submit()">
+                            <label class="btn btn-outline-primary" for="show-recent">Ostatnie rozmowy</label>
+                            <input type="radio" class="btn-check" name="show" id="show-all" value="all" {% if show_mode == 'all' %}checked{% endif %} onchange="this.form.submit()">
+                            <label class="btn btn-outline-primary" for="show-all">Wszyscy użytkownicy</label>
+                        </div>
+                    </div>
+                    <div class="col-12">
+                        <select name="relation" class="form-select form-select-sm" onchange="this.form.submit()">
+                            <option value="all" {% if relation_filter == 'all' %}selected{% endif %}>Wszyscy</option>
+                            <option value="mentor" {% if relation_filter == 'mentor' %}selected{% endif %}>Tylko mój mentor</option>
+                            <option value="mentee" {% if relation_filter == 'mentee' %}selected{% endif %}>Tylko moi uczniowie</option>
+                            <option value="related" {% if relation_filter == 'related' %}selected{% endif %}>Mentor + uczniowie</option>
+                            <option value="other" {% if relation_filter == 'other' %}selected{% endif %}>Pozostali użytkownicy</option>
+                        </select>
+                    </div>
+                    <div class="col-12">
+                        <select name="sort" class="form-select form-select-sm" onchange="this.form.submit()">
+                            <option value="name_asc" {% if sort == 'name_asc' %}selected{% endif %}>Sort: Imię/Nazwisko A-Z</option>
+                            <option value="name_desc" {% if sort == 'name_desc' %}selected{% endif %}>Sort: Imię/Nazwisko Z-A</option>
+                            <option value="email_asc" {% if sort == 'email_asc' %}selected{% endif %}>Sort: E-mail A-Z</option>
+                            <option value="email_desc" {% if sort == 'email_desc' %}selected{% endif %}>Sort: E-mail Z-A</option>
+                        </select>
+                    </div>
+                    {% if query %}
+                        <input type="hidden" name="q" value="{{ query }}">
+                    {% endif %}
+                </form>
+                <small class="text-muted d-block mt-2">
+                    {% if query %}
+                        Wyniki wyszukiwania użytkowników.
+                    {% elif show_mode == 'all' %}
+                        Pokazano wszystkich użytkowników (zastosowano filtry).
+                    {% else %}
+                        Pokazano ostatnie rozmowy.
+                    {% endif %}
+                </small>
+            </div>
+            <div class="list-group list-group-flush">
+                {% for contact in contacts %}
+                    <a href="{% url 'chat:chat_inbox_user' contact.id %}{% if list_querystring %}?{{ list_querystring }}{% endif %}"
+                       class="list-group-item list-group-item-action {% if selected_user and selected_user.id == contact.id %}active{% endif %}">
+                        <div class="text-truncate">{{ contact.get_full_name|default:contact.email }}</div>
+                        <small class="{% if selected_user and selected_user.id == contact.id %}text-white-50{% else %}text-muted{% endif %}">
+                            {{ contact.email }}
+                        </small>
+                        <div class="mt-1">
+                            {% if contact.relation_kind == "mentor" %}
+                                <span class="badge bg-warning text-dark">Twój mentor</span>
+                            {% elif contact.relation_kind == "mentee" %}
+                                <span class="badge bg-info text-dark">Twój uczeń</span>
+                            {% endif %}
+                        </div>
+                    </a>
+                {% empty %}
+                    <div class="list-group-item text-muted">
+                        {% if query %}
+                            Brak użytkowników pasujących do wyszukiwania.
+                        {% else %}
+                            Brak rozmów. Użyj wyszukiwarki, aby rozpocząć czat.
+                        {% endif %}
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-9">
+        {% if selected_user %}
+            <div class="card shadow-sm h-100">
+                <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-comment-dots me-2 text-primary"></i>
+                        Czat z: <strong>{{ selected_user.get_full_name|default:selected_user.email }}</strong>
+                    </h5>
+                    <a href="{% url 'accounts:logged' %}" class="btn btn-sm btn-outline-secondary">
+                        <i class="fas fa-arrow-left me-1"></i> Powrót
+                    </a>
+                </div>
+
+                <div class="card-body bg-light" id="chat-box" style="height: 420px; overflow-y: auto;">
+                    {% for msg in messages %}
+                        <div class="mb-3 d-flex {% if msg.sender == user %}justify-content-end{% else %}justify-content-start{% endif %}">
+                            <div class="p-3 rounded-3 shadow-sm {% if msg.sender == user %}bg-primary text-white{% else %}bg-white text-dark{% endif %}" style="max-width: 75%;">
+                                <div class="small fw-bold mb-1">
+                                    {% if msg.sender == user %}Ty{% else %}{{ msg.sender.get_full_name|default:msg.sender.email }}{% endif %}
+                                </div>
+                                <div class="text-break">{{ msg.text }}</div>
+                                <div class="text-end mt-1" style="font-size: 0.7rem; opacity: 0.8;">
+                                    {{ msg.sent_at|date:"d.m H:i" }}
+                                </div>
+                            </div>
+                        </div>
+                    {% empty %}
+                        <div class="text-center text-muted mt-5">
+                            <i class="fas fa-comments fa-3x mb-3 opacity-25"></i>
+                            <p>Brak wiadomości. Napisz pierwszą wiadomość!</p>
+                        </div>
+                    {% endfor %}
+                </div>
+
+                <div class="card-footer bg-white p-3">
+                    <form id="chat-form" class="row g-2">
+                        {% csrf_token %}
+                        <div class="col">
+                            <input type="text" name="text" class="form-control" placeholder="Wpisz wiadomość..." required id="message-input">
+                        </div>
+                        <div class="col-auto">
+                            <button type="submit" class="btn btn-primary px-4">
+                                <i class="fas fa-paper-plane"></i>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        {% else %}
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-body text-center py-5">
+                    <i class="fas fa-comments fa-4x text-muted mb-3 opacity-25"></i>
+                    <h3 class="text-muted">Brak rozmówców</h3>
+                    <p class="text-muted">W systemie nie ma innych użytkowników do rozpoczęcia czatu.</p>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{% if selected_user %}
+<script>
+const chatBox = document.getElementById("chat-box");
+if (chatBox) {
+    chatBox.scrollTop = chatBox.scrollHeight;
+}
+
+const socket = new WebSocket(`ws://${window.location.host}/ws/chat/{{ selected_user.id }}/`);
+
+socket.onmessage = function(e) {
+    const data = JSON.parse(e.data);
+    const msgDiv = document.createElement("div");
+    msgDiv.className = "mb-3 d-flex " + (data.sender === "{{ user.email }}" ? "justify-content-end" : "justify-content-start");
+
+    const innerDiv = document.createElement("div");
+    innerDiv.className = "p-3 rounded-3 shadow-sm " + (data.sender === "{{ user.email }}" ? "bg-primary text-white" : "bg-white text-dark");
+    innerDiv.style.maxWidth = "75%";
+    innerDiv.innerHTML = `<div class="small fw-bold mb-1">${data.sender === "{{ user.email }}" ? "Ty" : data.sender}</div>
+                          <div class="text-break">${data.message}</div>
+                          <div class="text-end mt-1" style="font-size:0.7rem;opacity:0.8;">teraz</div>`;
+
+    msgDiv.appendChild(innerDiv);
+    chatBox.appendChild(msgDiv);
+    chatBox.scrollTop = chatBox.scrollHeight;
+};
+
+document.getElementById("chat-form").onsubmit = function(e) {
+    e.preventDefault();
+    const input = document.getElementById("message-input");
+    if (!input || input.value.trim() === "") return;
+    socket.send(JSON.stringify({message: input.value}));
+    input.value = "";
+};
+</script>
+{% endif %}
+{% endblock %}

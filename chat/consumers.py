@@ -8,9 +8,15 @@ User = get_user_model()
 
 class ChatConsumer(AsyncWebsocketConsumer):
     async def connect(self):
-        print("WS CONNECTED", self.scope["user"])
         self.user = self.scope["user"]
-        self.other_user_id = self.scope["url_route"]["kwargs"]["user_id"]
+        if self.user.is_anonymous:
+            await self.close()
+            return
+
+        self.other_user_id = int(self.scope["url_route"]["kwargs"]["user_id"])
+        if self.user.id == self.other_user_id:
+            await self.close()
+            return
 
         self.room_name = f"chat_{min(self.user.id, self.other_user_id)}_{max(self.user.id, self.other_user_id)}"
         self.room_group_name = f"chat_{self.room_name}"
@@ -30,12 +36,12 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
     async def receive(self, text_data):
         data = json.loads(text_data)
-        message = data["message"]
+        message = data.get("message", "").strip()
+        if not message:
+            return
 
         receiver = await User.objects.aget(id=self.other_user_id)
-
-        # zapis do DB
-        msg = await Messages.objects.acreate(
+        await Messages.objects.acreate(
             sender=self.user,
             receiver=receiver,
             text=message

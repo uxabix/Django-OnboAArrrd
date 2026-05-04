@@ -1,93 +1,152 @@
-from django.shortcuts import render, redirect
+from urllib.parse import urlencode
+
+from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
-from .models import Messages
+from django.db.models import Q
+from django.shortcuts import get_object_or_404, redirect, render
+
 from .forms import MessageForm
-# chat/views.py
-from django.shortcuts import render, redirect
-from django.contrib.auth.decorators import login_required
 from .models import Messages
-from .forms import MessageForm
+
+CustomUser = get_user_model()
 
 
 @login_required
-def chat_student(request):
-    user = request.user
-    
-    if user.mentor is None:
-        return render(request, "exceptions/no_mentor.html")  # opcjonalnie zwróć info brak mentora
-    
-    mentor = user.mentor
+def chat_inbox(request, user_id=None):
+    current_user = request.user
+    query = (request.GET.get("q") or "").strip()
+    show_mode = (request.GET.get("show") or "recent").strip().lower()
+    if show_mode not in ("recent", "all"):
+        show_mode = "recent"
 
-    # Obsługa formularza wysyłania wiadomości
-    if request.method == 'POST':
+    relation_filter = (request.GET.get("relation") or "all").strip().lower()
+    if relation_filter not in ("all", "mentor", "mentee", "related", "other"):
+        relation_filter = "all"
+
+    sort = (request.GET.get("sort") or "name_asc").strip().lower()
+    sort_map = {
+        "name_asc": ("first_name", "last_name", "email"),
+        "name_desc": ("-first_name", "-last_name", "-email"),
+        "email_asc": ("email",),
+        "email_desc": ("-email",),
+    }
+    if sort not in sort_map:
+        sort = "name_asc"
+
+    # Kontakty domyślne: tylko osoby, z którymi użytkownik już pisał.
+    conversation_user_ids = set(
+        Messages.objects.filter(sender=current_user).values_list("receiver_id", flat=True)
+    ) | set(
+        Messages.objects.filter(receiver=current_user).values_list("sender_id", flat=True)
+    )
+
+    base_all_users = CustomUser.objects.exclude(pk=current_user.pk)
+
+    if show_mode == "recent" and not query:
+        contacts = (
+            CustomUser.objects.filter(pk__in=conversation_user_ids)
+            .exclude(pk=current_user.pk)
+        )
+    else:
+        # Tryb "all" albo aktywne wyszukiwanie.
+        contacts = base_all_users
+
+    if query:
+        contacts = contacts.filter(
+            Q(first_name__icontains=query)
+            | Q(last_name__icontains=query)
+            | Q(email__icontains=query)
+        )
+
+    # Relacja względem bieżącego użytkownika.
+    my_mentor_id = current_user.mentor_id
+    mentee_ids = set(current_user.mentees.values_list("id", flat=True))
+    related_ids = set(mentee_ids)
+    if my_mentor_id:
+        related_ids.add(my_mentor_id)
+
+    if relation_filter == "mentor":
+        contacts = contacts.filter(pk=my_mentor_id) if my_mentor_id else contacts.none()
+    elif relation_filter == "mentee":
+        contacts = contacts.filter(pk__in=mentee_ids) if mentee_ids else contacts.none()
+    elif relation_filter == "related":
+        contacts = contacts.filter(pk__in=related_ids) if related_ids else contacts.none()
+    elif relation_filter == "other":
+        contacts = contacts.exclude(pk__in=related_ids)
+
+    contacts = contacts.order_by(*sort_map[sort])
+
+    selected_user = None
+    if user_id is not None:
+        selected_user = get_object_or_404(CustomUser.objects.exclude(pk=current_user.pk), pk=user_id)
+    elif contacts.exists():
+        selected_user = contacts.first()
+
+    # Jeśli wskazany użytkownik nie mieści się w aktualnym filtrze listy (np. podczas
+    # wyszukiwania), dopnij go do listy kontaktów, aby dialog był nadal widoczny.
+    if selected_user and not contacts.filter(pk=selected_user.pk).exists():
+        contacts = (contacts | CustomUser.objects.filter(pk=selected_user.pk)).distinct().order_by(
+            *sort_map[sort]
+        )
+
+    if request.method == "POST" and selected_user is not None:
         form = MessageForm(request.POST)
         if form.is_valid():
             msg = form.save(commit=False)
-            msg.sender = user
-            msg.receiver = mentor
+            msg.sender = current_user
+            msg.receiver = selected_user
             msg.save()
-            return redirect('chat:chat_student')
+            return redirect("chat:chat_inbox_user", user_id=selected_user.id)
     else:
         form = MessageForm()
 
-    # Pobranie wiadomości student ↔ mentor
-    messages = Messages.objects.filter(
-        sender=user, receiver=mentor
-    ) | Messages.objects.filter(
-        sender=mentor, receiver=user
+    chat_messages = Messages.objects.none()
+    if selected_user is not None:
+        chat_messages = Messages.objects.filter(
+            Q(sender=current_user, receiver=selected_user)
+            | Q(sender=selected_user, receiver=current_user)
+        ).order_by("sent_at")
+
+    for contact in contacts:
+        if contact.pk == my_mentor_id:
+            contact.relation_kind = "mentor"
+        elif contact.pk in mentee_ids:
+            contact.relation_kind = "mentee"
+        else:
+            contact.relation_kind = "other"
+
+    list_query_params = {
+        "show": show_mode,
+        "relation": relation_filter,
+        "sort": sort,
+    }
+    if query:
+        list_query_params["q"] = query
+    list_querystring = urlencode(list_query_params)
+
+    return render(
+        request,
+        "chat/chat_inbox.html",
+        {
+            "contacts": contacts,
+            "selected_user": selected_user,
+            "messages": chat_messages,
+            "form": form,
+            "query": query,
+            "show_mode": show_mode,
+            "relation_filter": relation_filter,
+            "sort": sort,
+            "list_querystring": list_querystring,
+        },
     )
 
-    messages = messages.order_by("sent_at")
 
-    return render(request, "chat/chat_student.html", {
-        "messages": messages,
-        "form": form,
-        "mentor": mentor,
-    })
+# Backward-compatible aliases (old URLs/links)
+@login_required
+def chat_student(request):
+    return chat_inbox(request)
+
 
 @login_required
 def chat_mentor(request, student_id=None):
-    mentor = request.user
-
-    # Pobranie wszystkich studentów, którzy mają tego mentora
-    students = mentor.mentees.all()
-
-    if not students.exists():
-        return render(request, "exceptions/no_students.html")
-
-    # Jeśli mentor nie wybrał studenta, domyślnie wybierz pierwszego
-    if student_id is None:
-        selected_student = students.first()
-    else:
-        selected_student = students.filter(id=student_id).first()
-
-    if selected_student is None:
-        return render(request, "exceptions/no_student_found.html")
-
-    # Obsługa wysyłania wiadomości
-    if request.method == 'POST':
-        form = MessageForm(request.POST)
-        if form.is_valid():
-            msg = form.save(commit=False)
-            msg.sender = mentor
-            msg.receiver = selected_student
-            msg.save()
-            return redirect('chat:chat_mentor', student_id=selected_student.id)
-    else:
-        form = MessageForm()
-
-    # Wiadomości mentor ↔ wybrany student
-    messages = Messages.objects.filter(
-        sender=mentor, receiver=selected_student
-    ) | Messages.objects.filter(
-        sender=selected_student, receiver=mentor
-    )
-
-    messages = messages.order_by("sent_at")
-
-    return render(request, "chat/chat_mentor.html", {
-        "students": students,
-        "selected_student": selected_student,
-        "messages": messages,
-        "form": form,
-    })
+    return chat_inbox(request, user_id=student_id)
