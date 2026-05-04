@@ -3,12 +3,19 @@ from urllib.parse import urlencode
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.db.models import Q
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.views.decorators.http import require_GET
 
 from .forms import MessageForm
 from .models import Messages
 
 CustomUser = get_user_model()
+
+
+def _display_name(user):
+    full = f"{(user.first_name or '').strip()} {(user.last_name or '').strip()}".strip()
+    return full or user.email
 
 
 @login_required
@@ -150,3 +157,34 @@ def chat_student(request):
 @login_required
 def chat_mentor(request, student_id=None):
     return chat_inbox(request, user_id=student_id)
+
+
+@login_required
+@require_GET
+def chat_updates(request, user_id):
+    """Return new messages for current dialog after given last_id."""
+    current_user = request.user
+    other_user = get_object_or_404(CustomUser.objects.exclude(pk=current_user.pk), pk=user_id)
+
+    last_id_raw = (request.GET.get("last_id") or "").strip()
+    last_id = int(last_id_raw) if last_id_raw.isdigit() else 0
+
+    qs = Messages.objects.filter(
+        Q(sender=current_user, receiver=other_user)
+        | Q(sender=other_user, receiver=current_user)
+    ).order_by("message_id")
+    if last_id > 0:
+        qs = qs.filter(message_id__gt=last_id)
+
+    payload = []
+    for msg in qs[:100]:
+        payload.append(
+            {
+                "id": msg.message_id,
+                "text": msg.text,
+                "sender_email": msg.sender.email,
+                "sender_label": "Ty" if msg.sender_id == current_user.id else _display_name(msg.sender),
+                "sent_at": msg.sent_at.strftime("%d.%m %H:%M"),
+            }
+        )
+    return JsonResponse({"messages": payload})

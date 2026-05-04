@@ -114,7 +114,7 @@
 
                 <div class="card-body bg-light" id="chat-box" style="height: 420px; overflow-y: auto;">
                     {% for msg in messages %}
-                        <div class="mb-3 d-flex {% if msg.sender == user %}justify-content-end{% else %}justify-content-start{% endif %}">
+                        <div class="mb-3 d-flex {% if msg.sender == user %}justify-content-end{% else %}justify-content-start{% endif %}" data-message-id="{{ msg.message_id }}">
                             <div class="p-3 rounded-3 shadow-sm {% if msg.sender == user %}bg-primary text-white{% else %}bg-white text-dark{% endif %}" style="max-width: 75%;">
                                 <div class="small fw-bold mb-1">
                                     {% if msg.sender == user %}Ty{% else %}{{ msg.sender.get_full_name|default:msg.sender.email }}{% endif %}
@@ -134,7 +134,12 @@
                 </div>
 
                 <div class="card-footer bg-white p-3">
-                    <form id="chat-form" class="row g-2">
+                    <form
+                        id="chat-form"
+                        class="row g-2"
+                        method="post"
+                        action="{% url 'chat:chat_inbox_user' selected_user.id %}{% if list_querystring %}?{{ list_querystring }}{% endif %}"
+                    >
                         {% csrf_token %}
                         <div class="col">
                             <input type="text" name="text" class="form-control" placeholder="Wpisz wiadomość..." required id="message-input">
@@ -164,36 +169,154 @@
 {% if selected_user %}
 <script>
 const chatBox = document.getElementById("chat-box");
+const chatForm = document.getElementById("chat-form");
+const messageInput = document.getElementById("message-input");
+const currentUserEmail = "{{ user.email|escapejs }}";
+const updatesUrl = "{% url 'chat:chat_updates' selected_user.id %}";
+const knownMessageIds = new Set();
+
+let lastMessageId = 0;
 if (chatBox) {
-    chatBox.scrollTop = chatBox.scrollHeight;
+    chatBox.querySelectorAll("[data-message-id]").forEach((el) => {
+        const id = parseInt(el.getAttribute("data-message-id"), 10);
+        if (!Number.isNaN(id)) {
+            knownMessageIds.add(id);
+            if (id > lastMessageId) lastMessageId = id;
+        }
+    });
 }
 
-const socket = new WebSocket(`ws://${window.location.host}/ws/chat/{{ selected_user.id }}/`);
+function escapeHtml(text) {
+    return text
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+}
 
-socket.onmessage = function(e) {
-    const data = JSON.parse(e.data);
+function appendMessage({ id, senderEmail, senderLabel, text, sentAt }) {
+    if (!chatBox) return;
+    const numericId = parseInt(id, 10);
+    if (!Number.isNaN(numericId)) {
+        if (knownMessageIds.has(numericId)) return;
+        knownMessageIds.add(numericId);
+        if (numericId > lastMessageId) lastMessageId = numericId;
+    }
+
+    const mine = senderEmail === currentUserEmail;
     const msgDiv = document.createElement("div");
-    msgDiv.className = "mb-3 d-flex " + (data.sender === "{{ user.email }}" ? "justify-content-end" : "justify-content-start");
+    msgDiv.className = "mb-3 d-flex " + (mine ? "justify-content-end" : "justify-content-start");
+    if (!Number.isNaN(numericId)) {
+        msgDiv.setAttribute("data-message-id", String(numericId));
+    }
 
     const innerDiv = document.createElement("div");
-    innerDiv.className = "p-3 rounded-3 shadow-sm " + (data.sender === "{{ user.email }}" ? "bg-primary text-white" : "bg-white text-dark");
+    innerDiv.className = "p-3 rounded-3 shadow-sm " + (mine ? "bg-primary text-white" : "bg-white text-dark");
     innerDiv.style.maxWidth = "75%";
-    innerDiv.innerHTML = `<div class="small fw-bold mb-1">${data.sender === "{{ user.email }}" ? "Ty" : data.sender}</div>
-                          <div class="text-break">${data.message}</div>
-                          <div class="text-end mt-1" style="font-size:0.7rem;opacity:0.8;">teraz</div>`;
+    innerDiv.innerHTML =
+        `<div class="small fw-bold mb-1">${escapeHtml(mine ? "Ty" : (senderLabel || senderEmail))}</div>` +
+        `<div class="text-break">${escapeHtml(text)}</div>` +
+        `<div class="text-end mt-1" style="font-size:0.7rem;opacity:0.8;">${escapeHtml(sentAt || "teraz")}</div>`;
 
     msgDiv.appendChild(innerDiv);
     chatBox.appendChild(msgDiv);
     chatBox.scrollTop = chatBox.scrollHeight;
+}
+
+if (chatBox) {
+    chatBox.scrollTop = chatBox.scrollHeight;
+}
+
+const wsProtocol = window.location.protocol === "https:" ? "wss" : "ws";
+const wsUrl = `${wsProtocol}://${window.location.host}/ws/chat/{{ selected_user.id }}/`;
+let socket = null;
+let socketReady = false;
+let reconnectTimer = null;
+
+function scheduleReconnect() {
+    if (reconnectTimer) return;
+    reconnectTimer = setTimeout(() => {
+        reconnectTimer = null;
+        connectSocket();
+    }, 2000);
+}
+
+function connectSocket() {
+    try {
+        socket = new WebSocket(wsUrl);
+    } catch (e) {
+        socketReady = false;
+        scheduleReconnect();
+        return;
+    }
+
+    socket.onopen = function() {
+        socketReady = true;
+    };
+
+    socket.onerror = function() {
+        socketReady = false;
+    };
+
+    socket.onclose = function() {
+        socketReady = false;
+        scheduleReconnect();
+    };
+
+    socket.onmessage = function(e) {
+        const data = JSON.parse(e.data);
+        appendMessage({
+            id: data.id,
+            senderEmail: data.sender,
+            senderLabel: data.sender_label,
+            text: data.message,
+            sentAt: data.sent_at || "teraz",
+        });
+    };
+}
+
+connectSocket();
+
+chatForm.onsubmit = function(e) {
+    if (!messageInput || messageInput.value.trim() === "") {
+        e.preventDefault();
+        return;
+    }
+
+    // Prefer WebSocket for realtime; fallback to regular POST when socket is unavailable.
+    if (socketReady && socket && socket.readyState === WebSocket.OPEN) {
+        e.preventDefault();
+        socket.send(JSON.stringify({message: messageInput.value}));
+        messageInput.value = "";
+    }
 };
 
-document.getElementById("chat-form").onsubmit = function(e) {
-    e.preventDefault();
-    const input = document.getElementById("message-input");
-    if (!input || input.value.trim() === "") return;
-    socket.send(JSON.stringify({message: input.value}));
-    input.value = "";
-};
+async function pollUpdates() {
+    try {
+        const response = await fetch(`${updatesUrl}?last_id=${lastMessageId}`, {
+            headers: { "X-Requested-With": "XMLHttpRequest" },
+            credentials: "same-origin",
+        });
+        if (!response.ok) return;
+        const data = await response.json();
+        const messages = data.messages || [];
+        messages.forEach((msg) => {
+            appendMessage({
+                id: msg.id,
+                senderEmail: msg.sender_email,
+                senderLabel: msg.sender_label,
+                text: msg.text,
+                sentAt: msg.sent_at,
+            });
+        });
+    } catch (e) {
+        // ignore transient polling issues
+    }
+}
+
+setInterval(pollUpdates, 2000);
+pollUpdates();
 </script>
 {% endif %}
 {% endblock %}

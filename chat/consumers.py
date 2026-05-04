@@ -6,6 +6,12 @@ from .models import Messages
 
 User = get_user_model()
 
+
+def _display_name(user):
+    full = f"{(user.first_name or '').strip()} {(user.last_name or '').strip()}".strip()
+    return full or user.email
+
+
 class ChatConsumer(AsyncWebsocketConsumer):
     async def connect(self):
         self.user = self.scope["user"]
@@ -41,7 +47,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
             return
 
         receiver = await User.objects.aget(id=self.other_user_id)
-        await Messages.objects.acreate(
+        msg = await Messages.objects.acreate(
             sender=self.user,
             receiver=receiver,
             text=message
@@ -52,13 +58,19 @@ class ChatConsumer(AsyncWebsocketConsumer):
             self.room_group_name,
             {
                 "type": "chat_message",
+                "id": msg.message_id,
                 "message": message,
                 "sender": self.user.email,
+                "sender_label": _display_name(self.user),
+                "sent_at": msg.sent_at.strftime("%d.%m %H:%M"),
             }
         )
 
     async def chat_message(self, event):
         await self.send(text_data=json.dumps({
+            "id": event.get("id"),
             "message": event["message"],
             "sender": event["sender"],
+            "sender_label": event.get("sender_label", event["sender"]),
+            "sent_at": event.get("sent_at", "teraz"),
         }))

@@ -6,6 +6,7 @@ app_name = "chat"
 urlpatterns = [
     # New universal chat (any user <-> any user)
     path("", views.chat_inbox, name="chat_inbox"),
+    path("updates/<int:user_id>/", views.chat_updates, name="chat_updates"),
     path("<int:user_id>/", views.chat_inbox, name="chat_inbox_user"),
 
     # Backward-compatible routes
