@@ -126,9 +126,32 @@ def user_tasks_calendar(request, year=None, month=None):
 
     enriched, stats, reminders, _ = _build_user_tasks_with_state(request.user)
 
+    # Dla mentorów: dodatkowo pokaż deadline'y zadań ich podopiecznych.
+    mentee_enriched = []
+    if request.user.is_mentor:
+        mentee_tasks = (
+            User_tasks.objects.filter(user_id__mentor=request.user)
+            .select_related('user_id', 'task_id', 'task_id__path', 'assigned_by')
+            .prefetch_related('statuses')
+            .order_by('deadline')
+        )
+        for ut in mentee_tasks:
+            mentee_enriched.append({
+                'user_task': ut,
+                'state': ut.deadline_state,
+                'current_status': ut.current_status,
+                'days_until_deadline': ut.days_until_deadline,
+                'submission_date': ut.submission_date,
+                'is_mentee_task': True,
+                'student_name': f"{ut.user_id.first_name} {ut.user_id.last_name}".strip() or ut.user_id.email,
+            })
+
+    for item in enriched:
+        item['is_mentee_task'] = False
+
     # Mapa: data -> lista zadań
     tasks_by_date = {}
-    for item in enriched:
+    for item in enriched + mentee_enriched:
         d = item['user_task'].deadline
         tasks_by_date.setdefault(d, []).append(item)
 
@@ -182,6 +205,7 @@ def user_tasks_calendar(request, year=None, month=None):
             'today_month': today.month,
             'stats': stats,
             'reminders': reminders,
+            'is_mentor': request.user.is_mentor,
         },
     )
 

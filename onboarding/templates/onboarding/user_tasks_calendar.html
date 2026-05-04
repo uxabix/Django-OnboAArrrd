@@ -46,6 +46,10 @@
     .calendar-day .task-pill.overdue { background-color: #dc3545; }
     .calendar-day .task-pill.approaching { background-color: #0dcaf0; color: #000; }
     .calendar-day .task-pill.on_track { background-color: #6c757d; }
+    .calendar-day .task-pill.mentee-task {
+        border: 1px dashed rgba(0, 0, 0, 0.35);
+        font-style: italic;
+    }
     .legend-dot {
         display: inline-block;
         width: 12px;
@@ -113,6 +117,9 @@
                     <span class="me-3"><span class="legend-dot" style="background:#dc3545"></span>Przeterminowane</span>
                     <span class="me-3"><span class="legend-dot" style="background:#198754"></span>Oddane w terminie</span>
                     <span class="me-3"><span class="legend-dot" style="background:#fd7e14"></span>Po terminie</span>
+                    {% if is_mentor %}
+                        <span class="me-3"><span class="legend-dot" style="background:#adb5bd; border:1px dashed #6c757d"></span>Zadanie ucznia</span>
+                    {% endif %}
                 </div>
 
                 <!-- Tabela kalendarza -->
@@ -132,11 +139,18 @@
                                         <td class="calendar-day {% if not day.in_month %}outside{% endif %} {% if day.is_today %}today{% endif %}">
                                             <div class="day-number">{{ day.date.day }}</div>
                                             {% for item in day.tasks %}
-                                                <a href="{% url 'onboarding:user_task_detail' item.user_task.user_tasks_id %}"
-                                                   class="task-pill {{ item.state }}"
-                                                   title="{{ item.user_task.task_id.title }} ({{ item.current_status }})">
-                                                    {{ item.user_task.task_id.title }}
-                                                </a>
+                                                {% if item.is_mentee_task %}
+                                                    <span class="task-pill {{ item.state }} mentee-task"
+                                                          title="{{ item.student_name }}: {{ item.user_task.task_id.title }} ({{ item.current_status }})">
+                                                        {{ item.student_name }}: {{ item.user_task.task_id.title }}
+                                                    </span>
+                                                {% else %}
+                                                    <a href="{% url 'onboarding:user_task_detail' item.user_task.user_tasks_id %}"
+                                                       class="task-pill {{ item.state }}"
+                                                       title="{{ item.user_task.task_id.title }} ({{ item.current_status }})">
+                                                        {{ item.user_task.task_id.title }}
+                                                    </a>
+                                                {% endif %}
                                             {% endfor %}
                                         </td>
                                     {% endfor %}
