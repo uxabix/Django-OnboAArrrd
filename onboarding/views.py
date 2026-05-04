@@ -1,21 +1,218 @@
-from django.shortcuts import render
-from .models import User_tasks,User_paths
-from django.shortcuts import render, get_object_or_404
-from django.shortcuts import render, redirect, get_object_or_404
+import calendar
+
+from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db import models
-from .models import User_tasks, User_paths, Tasks, Task_status, Competency_paths
-from .forms import TaskForm, UserTaskForm, UserPathForm, CompetencyPathForm
+from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
+
+from .forms import CompetencyPathForm, TaskForm, UserPathForm, UserTaskForm
+from .models import (
+    Competency_paths,
+    Task_status,
+    Tasks,
+    User_paths,
+    User_tasks,
+)
 
 
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+DEADLINE_FILTERS = {
+    'all': 'Wszystkie',
+    'active': 'Aktywne',
+    'approaching': 'Zbliżający się termin',
+    'overdue': 'Przeterminowane',
+    'completed': 'Ukończone / oddane',
+}
+
+
+def _build_user_tasks_with_state(user):
+    """Pobiera wszystkie zadania użytkownika i wzbogaca je o stan terminu.
+    Zwraca listę dictów oraz statystyki."""
+    qs = (
+        User_tasks.objects.filter(user_id=user)
+        .select_related('task_id', 'task_id__path', 'assigned_by')
+        .prefetch_related('statuses')
+        .order_by('deadline')
+    )
+
+    enriched = []
+    stats = {'total': 0, 'active': 0, 'approaching': 0, 'overdue': 0, 'completed': 0}
+    today = timezone.now().date()
+    reminders = []
+
+    for ut in qs:
+        state = ut.deadline_state
+        item = {
+            'user_task': ut,
+            'state': state,
+            'current_status': ut.current_status,
+            'days_until_deadline': ut.days_until_deadline,
+            'submission_date': ut.submission_date,
+        }
+        enriched.append(item)
+        stats['total'] += 1
+        if state in ('on_time', 'late'):
+            stats['completed'] += 1
+        elif state == 'overdue':
+            stats['overdue'] += 1
+        elif state == 'approaching':
+            stats['approaching'] += 1
+            stats['active'] += 1
+            reminders.append(item)
+        else:
+            stats['active'] += 1
+
+    return enriched, stats, reminders, today
+
+
+# ---------------------------------------------------------------------------
+# Student views
+# ---------------------------------------------------------------------------
+
+
+@login_required
 def user_tasks_list(request):
-    # Pobiera tylko zadania zalogowanego użytkownika
-    tasks = User_tasks.objects.filter(user_id=request.user) if request.user.is_authenticated else []
-    return render(request, 'onboarding/user_tasks_list.html', {
-        'tasks': tasks,
-        'now': models.functions.Now(),
-    })
+    enriched, stats, reminders, today = _build_user_tasks_with_state(request.user)
+
+    filter_param = request.GET.get('filter', 'active')
+    if filter_param not in DEADLINE_FILTERS:
+        filter_param = 'active'
+
+    if filter_param == 'active':
+        filtered = [t for t in enriched if t['state'] in ('on_track', 'approaching')]
+    elif filter_param == 'approaching':
+        filtered = [t for t in enriched if t['state'] == 'approaching']
+    elif filter_param == 'overdue':
+        filtered = [t for t in enriched if t['state'] == 'overdue']
+    elif filter_param == 'completed':
+        filtered = [t for t in enriched if t['state'] in ('on_time', 'late')]
+    else:
+        filtered = enriched
+
+    page_number = request.GET.get('page', 1)
+    paginator = Paginator(filtered, 15)
+    page_obj = paginator.get_page(page_number)
+
+    return render(
+        request,
+        'onboarding/user_tasks_list.html',
+        {
+            'page_obj': page_obj,
+            'stats': stats,
+            'reminders': reminders,
+            'filter': filter_param,
+            'filter_options': DEADLINE_FILTERS,
+            'today': today,
+        },
+    )
+
+
+@login_required
+def user_tasks_calendar(request, year=None, month=None):
+    today = timezone.now().date()
+    try:
+        year = int(year) if year else today.year
+        month = int(month) if month else today.month
+    except (TypeError, ValueError):
+        year, month = today.year, today.month
+
+    if not (1 <= month <= 12):
+        year, month = today.year, today.month
+
+    enriched, stats, reminders, _ = _build_user_tasks_with_state(request.user)
+
+    # Mapa: data -> lista zadań
+    tasks_by_date = {}
+    for item in enriched:
+        d = item['user_task'].deadline
+        tasks_by_date.setdefault(d, []).append(item)
+
+    cal = calendar.Calendar(firstweekday=0)  # poniedziałek
+    weeks = []
+    for week in cal.monthdatescalendar(year, month):
+        week_data = []
+        for day in week:
+            day_tasks = tasks_by_date.get(day, [])
+            week_data.append({
+                'date': day,
+                'in_month': day.month == month,
+                'is_today': day == today,
+                'tasks': day_tasks,
+                'has_overdue': any(t['state'] == 'overdue' for t in day_tasks),
+                'has_approaching': any(t['state'] == 'approaching' for t in day_tasks),
+                'has_completed': any(t['state'] in ('on_time', 'late') for t in day_tasks),
+            })
+        weeks.append(week_data)
+
+    # Nawigacja po miesiącach
+    if month == 1:
+        prev_year, prev_month = year - 1, 12
+    else:
+        prev_year, prev_month = year, month - 1
+    if month == 12:
+        next_year, next_month = year + 1, 1
+    else:
+        next_year, next_month = year, month + 1
+
+    month_names_pl = [
+        '', 'Styczeń', 'Luty', 'Marzec', 'Kwiecień', 'Maj', 'Czerwiec',
+        'Lipiec', 'Sierpień', 'Wrzesień', 'Październik', 'Listopad', 'Grudzień'
+    ]
+    weekday_names_pl = ['Pon', 'Wt', 'Śr', 'Czw', 'Pt', 'Sob', 'Ndz']
+
+    return render(
+        request,
+        'onboarding/user_tasks_calendar.html',
+        {
+            'weeks': weeks,
+            'year': year,
+            'month': month,
+            'month_name': month_names_pl[month],
+            'weekday_names': weekday_names_pl,
+            'prev_year': prev_year,
+            'prev_month': prev_month,
+            'next_year': next_year,
+            'next_month': next_month,
+            'today_year': today.year,
+            'today_month': today.month,
+            'stats': stats,
+            'reminders': reminders,
+        },
+    )
+
+
+@login_required
+def user_submit_task(request, user_task_id):
+    """Pozwala studentowi oznaczyć swoje zadanie jako wysłane do weryfikacji."""
+    user_task = get_object_or_404(User_tasks, pk=user_task_id, user_id=request.user)
+
+    if request.method != 'POST':
+        return redirect('onboarding:user_task_detail', user_task_id=user_task.user_tasks_id)
+
+    if user_task.is_submitted:
+        messages.info(request, "To zadanie zostało już wcześniej oddane.")
+        return redirect('onboarding:user_task_detail', user_task_id=user_task.user_tasks_id)
+
+    Task_status.objects.create(
+        user_task=user_task,
+        old_status=user_task.current_status,
+        new_status=Task_status.Status.DO_WERYFIKACJI,
+    )
+
+    if user_task.deadline < timezone.now().date():
+        messages.warning(
+            request,
+            "Zadanie zostało wysłane do weryfikacji, ale po terminie (deadline minął).",
+        )
+    else:
+        messages.success(request, "Zadanie zostało wysłane do weryfikacji w terminie.")
+
+    return redirect('onboarding:user_task_detail', user_task_id=user_task.user_tasks_id)
 
 
 def user_paths_list(request):
@@ -42,12 +239,12 @@ def user_competency_paths_with_tasks(request):
 
     return render(request, 'onboarding/user_competency_paths_with_tasks.html', {'paths_with_tasks': paths_with_tasks})
 
+@login_required
 def user_task_detail(request, user_task_id):
-    # Pobierz zadanie użytkownika lub zwróć 404, jeśli nie istnieje lub nie należy do użytkownika
     user_task = get_object_or_404(
-        User_tasks,
+        User_tasks.objects.select_related('task_id', 'task_id__path', 'assigned_by').prefetch_related('statuses'),
         pk=user_task_id,
-        user_id=request.user
+        user_id=request.user,
     )
 
     statuses = user_task.statuses.order_by("-change_date")
@@ -55,6 +252,9 @@ def user_task_detail(request, user_task_id):
     return render(request, "onboarding/user_task_detail.html", {
         "user_task": user_task,
         "statuses": statuses,
+        "deadline_state": user_task.deadline_state,
+        "current_status": user_task.current_status,
+        "days_until_deadline": user_task.days_until_deadline,
     })
 
 @login_required
@@ -84,6 +284,7 @@ def mentor_task_management(request, student_id=None):
     task_search = request.GET.get('task_search', '').strip()
     task_sort = request.GET.get('task_sort', '-created_at')
     task_status_filter = request.GET.get('task_status', '')
+    deadline_filter = request.GET.get('deadline_state', '')
 
     # Pobranie zadań wybranego studenta
     student_tasks = User_tasks.objects.filter(
@@ -100,17 +301,24 @@ def mentor_task_management(request, student_id=None):
 
     # Przygotowanie danych o statusach zadań
     tasks_with_status = []
+    deadline_summary = {'on_time': 0, 'late': 0, 'overdue': 0, 'approaching': 0, 'on_track': 0}
     for utask in student_tasks:
-        latest_status = utask.statuses.order_by('-change_date').first()
-        current_status = latest_status.new_status if latest_status else Task_status.Status.DO_ZROBIENIA
+        current_status = utask.current_status
+        deadline_state = utask.deadline_state
+        deadline_summary[deadline_state] = deadline_summary.get(deadline_state, 0) + 1
 
-        # Filtrowanie po statusie
         if task_status_filter and current_status != task_status_filter:
+            continue
+
+        if deadline_filter and deadline_state != deadline_filter:
             continue
 
         tasks_with_status.append({
             'user_task': utask,
-            'current_status': current_status
+            'current_status': current_status,
+            'deadline_state': deadline_state,
+            'days_until_deadline': utask.days_until_deadline,
+            'submission_date': utask.submission_date,
         })
 
     # Sortowanie zadań
@@ -163,6 +371,15 @@ def mentor_task_management(request, student_id=None):
     paths_paginator = Paginator(student_paths, 10)
     paths_page_obj = paths_paginator.get_page(paths_page_number)
 
+    deadline_filter_options = [
+        ('', 'Wszystkie terminy'),
+        ('on_track', 'W trakcie (z czasem)'),
+        ('approaching', 'Zbliżający się termin'),
+        ('overdue', 'Przeterminowane (brak oddania)'),
+        ('on_time', 'Oddane w terminie'),
+        ('late', 'Oddane po terminie'),
+    ]
+
     return render(request, 'onboarding/mentor_task_management.html', {
         'students': students,
         'selected_student': selected_student,
@@ -171,10 +388,13 @@ def mentor_task_management(request, student_id=None):
         'task_search': task_search,
         'task_sort': task_sort,
         'task_status_filter': task_status_filter,
+        'deadline_filter': deadline_filter,
+        'deadline_filter_options': deadline_filter_options,
+        'deadline_summary': deadline_summary,
         'path_search': path_search,
         'path_sort': path_sort,
         'task_statuses': Task_status.Status.choices,
-        'now': models.functions.Now(),
+        'today': timezone.now().date(),
     })
 
 
@@ -354,18 +574,16 @@ def mentor_change_user_task_status(request, user_task_id):
     if new_status not in valid_values:
         return redirect('onboarding:mentor_task_management', student_id=user_task.user_id.id)
 
-    # Find current status
     latest = user_task.statuses.order_by('-change_date').first()
-    if latest:
-        latest.old_status = latest.new_status
-        latest.new_status = new_status
-        latest.save()
-    else:
-        Task_status.objects.create(
-            user_task=user_task,
-            old_status=None,
-            new_status=new_status,
-        )
+    old_status = latest.new_status if latest else None
+
+    # Tworzymy nowy rekord historii statusów (zamiast nadpisywania) — pozwala to
+    # zachować historię i poprawnie ocenić terminowość oddania zadania.
+    Task_status.objects.create(
+        user_task=user_task,
+        old_status=old_status,
+        new_status=new_status,
+    )
 
     return redirect('onboarding:mentor_task_management', student_id=user_task.user_id.id)
 

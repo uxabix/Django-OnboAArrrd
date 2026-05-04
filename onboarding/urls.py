@@ -1,25 +1,35 @@
 from django.urls import path
-from .views import user_tasks_list, user_competency_paths_with_tasks, user_task_detail
+
 from .views import (
-    user_tasks_list,
-    user_competency_paths_with_tasks,
-    mentor_task_management,
-    mentor_assign_task,
-    mentor_create_task,
-    mentor_edit_task,
-    mentor_delete_user_task,
     mentor_assign_path,
-    mentor_delete_user_path,
-    mentor_create_path,
+    mentor_assign_task,
     mentor_change_user_task_status,
+    mentor_create_path,
+    mentor_create_task,
+    mentor_delete_user_path,
+    mentor_delete_user_task,
+    mentor_edit_task,
+    mentor_task_management,
+    user_competency_paths_with_tasks,
+    user_submit_task,
+    user_task_detail,
+    user_tasks_calendar,
+    user_tasks_list,
 )
 
 app_name = "onboarding"
 
 urlpatterns = [
     path('onboarding/tasks/', user_tasks_list, name='user_tasks_list'),
+    path('onboarding/tasks/calendar/', user_tasks_calendar, name='user_tasks_calendar'),
+    path(
+        'onboarding/tasks/calendar/<int:year>/<int:month>/',
+        user_tasks_calendar,
+        name='user_tasks_calendar_month',
+    ),
     path('onboarding/paths/', user_competency_paths_with_tasks, name='user_competency_paths_with_tasks'),
     path("task/<int:user_task_id>/", user_task_detail, name="user_task_detail"),
+    path('task/<int:user_task_id>/submit/', user_submit_task, name='user_submit_task'),
     # Mentor routes
     path('mentor/tasks/', mentor_task_management, name='mentor_task_management'),
     path('mentor/tasks/<int:student_id>/', mentor_task_management, name='mentor_task_management'),

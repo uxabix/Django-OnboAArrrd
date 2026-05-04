@@ -4,13 +4,106 @@
 
 {% block content %}
 <div class="row">
-    <div class="col-md-10 offset-md-1">
+    <div class="col-md-11 offset-md-1">
         <div class="card shadow-sm">
-            <div class="card-header bg-primary text-white">
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
                 <h2 class="mb-0"><i class="fas fa-tasks me-2"></i>Moje zadania</h2>
+                <a href="{% url 'onboarding:user_tasks_calendar' %}" class="btn btn-light btn-sm">
+                    <i class="fas fa-calendar-alt me-1"></i> Widok kalendarza
+                </a>
             </div>
             <div class="card-body">
-                {% if tasks %}
+
+                {% if messages %}
+                    {% for message in messages %}
+                        <div class="alert alert-{{ message.tags|default:'info' }} alert-dismissible fade show" role="alert">
+                            {{ message }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        </div>
+                    {% endfor %}
+                {% endif %}
+
+                <!-- Karty statystyk -->
+                <div class="row g-2 mb-4">
+                    <div class="col-6 col-md-3">
+                        <a href="?filter=active" class="text-decoration-none">
+                            <div class="card border-primary h-100">
+                                <div class="card-body py-3 text-center">
+                                    <div class="text-primary small text-uppercase fw-bold">Aktywne</div>
+                                    <div class="h3 mb-0 fw-bold text-dark">{{ stats.active }}</div>
+                                </div>
+                            </div>
+                        </a>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <a href="?filter=approaching" class="text-decoration-none">
+                            <div class="card border-info h-100">
+                                <div class="card-body py-3 text-center">
+                                    <div class="text-info small text-uppercase fw-bold">Zbliża się termin</div>
+                                    <div class="h3 mb-0 fw-bold text-dark">{{ stats.approaching }}</div>
+                                </div>
+                            </div>
+                        </a>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <a href="?filter=overdue" class="text-decoration-none">
+                            <div class="card border-danger h-100">
+                                <div class="card-body py-3 text-center">
+                                    <div class="text-danger small text-uppercase fw-bold">Przeterminowane</div>
+                                    <div class="h3 mb-0 fw-bold text-dark">{{ stats.overdue }}</div>
+                                </div>
+                            </div>
+                        </a>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <a href="?filter=completed" class="text-decoration-none">
+                            <div class="card border-success h-100">
+                                <div class="card-body py-3 text-center">
+                                    <div class="text-success small text-uppercase fw-bold">Ukończone / oddane</div>
+                                    <div class="h3 mb-0 fw-bold text-dark">{{ stats.completed }}</div>
+                                </div>
+                            </div>
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Przypomnienia o zbliżających się terminach -->
+                {% if reminders %}
+                    <div class="alert alert-warning border-warning">
+                        <h5 class="alert-heading mb-2">
+                            <i class="fas fa-bell me-2"></i>Przypomnienia o zbliżających się terminach
+                        </h5>
+                        <ul class="mb-0">
+                            {% for item in reminders %}
+                                <li>
+                                    <a href="{% url 'onboarding:user_task_detail' item.user_task.user_tasks_id %}" class="fw-bold">
+                                        {{ item.user_task.task_id.title }}
+                                    </a>
+                                    — termin: <strong>{{ item.user_task.deadline|date:"d.m.Y" }}</strong>
+                                    {% if item.days_until_deadline == 0 %}
+                                        <span class="badge bg-danger">dzisiaj!</span>
+                                    {% elif item.days_until_deadline == 1 %}
+                                        <span class="badge bg-warning text-dark">jutro</span>
+                                    {% else %}
+                                        <span class="badge bg-info text-dark">za {{ item.days_until_deadline }} dni</span>
+                                    {% endif %}
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                {% endif %}
+
+                <!-- Zakładki filtrów -->
+                <ul class="nav nav-pills mb-3">
+                    {% for value, label in filter_options.items %}
+                        <li class="nav-item">
+                            <a class="nav-link {% if filter == value %}active{% endif %}"
+                               href="?filter={{ value }}">{{ label }}</a>
+                        </li>
+                    {% endfor %}
+                </ul>
+
+                {% if page_obj.object_list %}
                     <div class="table-responsive">
                         <table class="table table-hover align-middle">
                             <thead class="table-light">
@@ -18,28 +111,100 @@
                                     <th>Zadanie</th>
                                     <th>Opis</th>
                                     <th>Termin (Deadline)</th>
+                                    <th>Stan</th>
+                                    <th class="text-end">Akcje</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {% for utask in tasks %}
+                                {% for item in page_obj %}
                                     <tr>
-                                        <td class="fw-bold text-primary">{{ utask.task_id.title }}</td>
-                                        <td>{{ utask.task_id.description|truncatewords:15|default:"Brak opisu" }}</td>
+                                        <td class="fw-bold text-primary">{{ item.user_task.task_id.title }}</td>
+                                        <td>{{ item.user_task.task_id.description|truncatewords:15|default:"Brak opisu" }}</td>
                                         <td>
-                                            <span class="badge {% if utask.deadline < now %}bg-danger{% else %}bg-info text-dark{% endif %} p-2">
-                                                <i class="far fa-calendar-alt me-1"></i> {{ utask.deadline|date:"d.m.Y" }}
-                                            </span>
+                                            <div>
+                                                <i class="far fa-calendar-alt me-1 text-muted"></i>
+                                                {{ item.user_task.deadline|date:"d.m.Y" }}
+                                            </div>
+                                            {% if item.submission_date %}
+                                                <small class="text-muted">
+                                                    Oddano: {{ item.submission_date|date:"d.m.Y" }}
+                                                </small>
+                                            {% elif item.state == 'overdue' %}
+                                                <small class="text-danger">
+                                                    Spóźnienie: {{ item.days_until_deadline|stringformat:"d"|cut:"-" }} dni
+                                                </small>
+                                            {% elif item.state == 'approaching' %}
+                                                <small class="text-warning">
+                                                    {% if item.days_until_deadline == 0 %}
+                                                        Termin dzisiaj!
+                                                    {% elif item.days_until_deadline == 1 %}
+                                                        Termin jutro!
+                                                    {% else %}
+                                                        Zostało {{ item.days_until_deadline }} dni
+                                                    {% endif %}
+                                                </small>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if item.state == 'on_time' %}
+                                                <span class="badge rounded-pill bg-success">
+                                                    <i class="fas fa-check me-1"></i>W terminie
+                                                </span>
+                                            {% elif item.state == 'late' %}
+                                                <span class="badge rounded-pill bg-warning text-dark">
+                                                    <i class="fas fa-exclamation me-1"></i>Po terminie
+                                                </span>
+                                            {% elif item.state == 'overdue' %}
+                                                <span class="badge rounded-pill bg-danger">
+                                                    <i class="fas fa-times me-1"></i>Przeterminowane
+                                                </span>
+                                            {% elif item.state == 'approaching' %}
+                                                <span class="badge rounded-pill bg-info text-dark">
+                                                    <i class="fas fa-clock me-1"></i>Zbliża się termin
+                                                </span>
+                                            {% else %}
+                                                <span class="badge rounded-pill bg-light text-dark border">
+                                                    <i class="fas fa-hourglass-half me-1"></i>W trakcie
+                                                </span>
+                                            {% endif %}
+                                            <div class="small text-muted mt-1">{{ item.current_status }}</div>
+                                        </td>
+                                        <td class="text-end">
+                                            <a href="{% url 'onboarding:user_task_detail' item.user_task.user_tasks_id %}"
+                                               class="btn btn-sm btn-outline-primary">
+                                                <i class="fas fa-eye"></i> Szczegóły
+                                            </a>
                                         </td>
                                     </tr>
                                 {% endfor %}
                             </tbody>
                         </table>
                     </div>
+
+                    {% if page_obj.has_other_pages %}
+                        <nav>
+                            <ul class="pagination justify-content-center">
+                                {% if page_obj.has_previous %}
+                                    <li class="page-item">
+                                        <a class="page-link" href="?filter={{ filter }}&page={{ page_obj.previous_page_number }}">«</a>
+                                    </li>
+                                {% endif %}
+                                <li class="page-item disabled">
+                                    <span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+                                </li>
+                                {% if page_obj.has_next %}
+                                    <li class="page-item">
+                                        <a class="page-link" href="?filter={{ filter }}&page={{ page_obj.next_page_number }}">»</a>
+                                    </li>
+                                {% endif %}
+                            </ul>
+                        </nav>
+                    {% endif %}
                 {% else %}
                     <div class="text-center py-5">
                         <i class="fas fa-clipboard-check fa-4x text-muted mb-3 opacity-25"></i>
-                        <h4 class="text-muted">Brak przypisanych zadań.</h4>
-                        <p>Wszystko zrobione! Możesz odpocząć или skontaktować się z mentorem.</p>
+                        <h4 class="text-muted">Brak zadań w tej kategorii.</h4>
+                        <p class="text-muted">Zmień filtr lub skontaktuj się z mentorem.</p>
                     </div>
                 {% endif %}
 

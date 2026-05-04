@@ -110,9 +110,101 @@ class User_tasks(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     deadline = models.DateField()
 
+    # Liczba dni od deadline'u, kiedy zadanie traktujemy jako "zbliżające się" (np. dla powiadomień)
+    APPROACHING_THRESHOLD_DAYS = 3
+
     class Meta:
         verbose_name = "User Task"
         verbose_name_plural = "User Tasks"
+
+    @property
+    def latest_status(self):
+        """Najbardziej aktualny rekord historii statusów."""
+        # Wykorzystujemy already-fetched prefetch jeśli dostępny
+        statuses = list(self.statuses.all())
+        if not statuses:
+            return None
+        return sorted(statuses, key=lambda s: s.change_date, reverse=True)[0]
+
+    @property
+    def current_status(self):
+        latest = self.latest_status
+        if latest is None:
+            return Task_status.Status.DO_ZROBIENIA
+        return latest.new_status
+
+    @property
+    def is_completed(self):
+        return self.current_status == Task_status.Status.UKONCZONE
+
+    @property
+    def is_submitted(self):
+        """Zadanie zostało wysłane do weryfikacji albo już zaakceptowane."""
+        return self.current_status in (
+            Task_status.Status.DO_WERYFIKACJI,
+            Task_status.Status.UKONCZONE,
+        )
+
+    @property
+    def submission_date(self):
+        """Data pierwszego oddania zadania (zmiany statusu na 'do weryfikacji'
+        lub 'ukończone'). Używana do oceny terminowości oddania zadania."""
+        statuses = sorted(self.statuses.all(), key=lambda s: s.change_date)
+        for status in statuses:
+            if status.new_status in (
+                Task_status.Status.DO_WERYFIKACJI,
+                Task_status.Status.UKONCZONE,
+            ):
+                return status.change_date
+        return None
+
+    @property
+    def is_overdue(self):
+        """Deadline minął, a zadanie nie zostało ani oddane, ani ukończone."""
+        if self.is_submitted:
+            return False
+        return self.deadline < timezone.now().date()
+
+    @property
+    def days_until_deadline(self):
+        """Liczba dni do deadline'u (ujemna gdy minął)."""
+        return (self.deadline - timezone.now().date()).days
+
+    @property
+    def is_approaching_deadline(self):
+        """Zbliża się deadline: zadanie nieoddane i deadline w ciągu kilku dni."""
+        if self.is_submitted:
+            return False
+        days = self.days_until_deadline
+        return 0 <= days <= self.APPROACHING_THRESHOLD_DAYS
+
+    @property
+    def submitted_on_time(self):
+        sub = self.submission_date
+        return sub is not None and sub <= self.deadline
+
+    @property
+    def submitted_late(self):
+        sub = self.submission_date
+        return sub is not None and sub > self.deadline
+
+    @property
+    def deadline_state(self):
+        """Zwraca jeden z: on_time, late, overdue, approaching, on_track.
+
+        - on_time: zadanie wysłane/ukończone w terminie
+        - late: zadanie wysłane/ukończone po deadline
+        - overdue: deadline minął, brak wysyłki
+        - approaching: deadline w ciągu kilku dni, brak wysyłki
+        - on_track: jeszcze sporo czasu, brak wysyłki
+        """
+        if self.is_submitted:
+            return 'on_time' if self.submitted_on_time else 'late'
+        if self.is_overdue:
+            return 'overdue'
+        if self.is_approaching_deadline:
+            return 'approaching'
+        return 'on_track'
 
 
 class Task_status(models.Model):

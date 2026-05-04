@@ -132,15 +132,51 @@
                         </div>
                     </div>
 
+                    <!-- Podsumowanie terminowości -->
+                    <div class="row g-2 mb-3">
+                        <div class="col-6 col-md-3">
+                            <div class="card border-success h-100">
+                                <div class="card-body py-2 text-center">
+                                    <div class="text-success small text-uppercase">Oddane w terminie</div>
+                                    <div class="h5 mb-0 fw-bold">{{ deadline_summary.on_time|default:0 }}</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <div class="card border-warning h-100">
+                                <div class="card-body py-2 text-center">
+                                    <div class="text-warning small text-uppercase">Oddane po terminie</div>
+                                    <div class="h5 mb-0 fw-bold">{{ deadline_summary.late|default:0 }}</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <div class="card border-danger h-100">
+                                <div class="card-body py-2 text-center">
+                                    <div class="text-danger small text-uppercase">Przeterminowane</div>
+                                    <div class="h5 mb-0 fw-bold">{{ deadline_summary.overdue|default:0 }}</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <div class="card border-info h-100">
+                                <div class="card-body py-2 text-center">
+                                    <div class="text-info small text-uppercase">Zbliża się termin</div>
+                                    <div class="h5 mb-0 fw-bold">{{ deadline_summary.approaching|default:0 }}</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Search and sort tasks -->
                     <form method="GET" class="row g-2 mb-3">
-                        <div class="col-md-4">
+                        <div class="col-md-3">
                             <div class="input-group input-group-sm">
                                 <span class="input-group-text"><i class="fas fa-search"></i></span>
                                 <input type="text" name="task_search" value="{{ task_search }}" class="form-control" placeholder="Szukaj zadania...">
                             </div>
                         </div>
-                        <div class="col-md-3">
+                        <div class="col-md-2">
                             <select name="task_sort" class="form-select form-select-sm">
                                 <option value="-created_at" {% if task_sort == '-created_at' %}selected{% endif %}>Najnowsze</option>
                                 <option value="created_at" {% if task_sort == 'created_at' %}selected{% endif %}>Najstarsze</option>
@@ -158,7 +194,14 @@
                                 {% endfor %}
                             </select>
                         </div>
-                        <div class="col-md-2 d-grid">
+                        <div class="col-md-3">
+                            <select name="deadline_state" class="form-select form-select-sm">
+                                {% for value, label in deadline_filter_options %}
+                                    <option value="{{ value }}" {% if deadline_filter == value %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-1 d-grid">
                             <button type="submit" class="btn btn-secondary btn-sm">Filtruj</button>
                         </div>
                     </form>
@@ -170,6 +213,7 @@
                                     <tr>
                                         <th>Zadanie / Ścieżka</th>
                                         <th>Termin</th>
+                                        <th>Terminowość</th>
                                         <th>Status</th>
                                         <th class="text-end">Akcje</th>
                                     </tr>
@@ -188,17 +232,54 @@
                                                 </small>
                                             </td>
                                             <td>
-
-
-                                                </span>
+                                                <div>
+                                                    <i class="far fa-calendar-alt me-1 text-muted"></i>
+                                                    {{ item.user_task.deadline|date:"d.m.Y" }}
+                                                </div>
+                                                {% if item.submission_date %}
+                                                    <small class="text-muted">
+                                                        Oddano: {{ item.submission_date|date:"d.m.Y" }}
+                                                    </small>
+                                                {% elif item.deadline_state == 'overdue' %}
+                                                    <small class="text-danger">
+                                                        Spóźnienie: {{ item.days_until_deadline|stringformat:"d"|cut:"-" }} dni
+                                                    </small>
+                                                {% elif item.deadline_state == 'approaching' %}
+                                                    <small class="text-warning">
+                                                        Zostało {{ item.days_until_deadline }} dni
+                                                    </small>
+                                                {% endif %}
                                             </td>
                                             <td>
-                                                <span class="badge rounded-pill 
-                                                    {% if item.current_status == 'DO_ZROBIENIA' %}bg-secondary
-                                                    {% elif item.current_status == 'W_TRAKCIE' %}bg-primary
-                                                    {% elif item.current_status == 'DO_POPRAWY' %}bg-warning text-dark
-                                                    {% elif item.current_status == 'ZROBIONE' %}bg-success
-                                                    {% endif %}">
+                                                {% if item.deadline_state == 'on_time' %}
+                                                    <span class="badge rounded-pill bg-success">
+                                                        <i class="fas fa-check me-1"></i>W terminie
+                                                    </span>
+                                                {% elif item.deadline_state == 'late' %}
+                                                    <span class="badge rounded-pill bg-warning text-dark">
+                                                        <i class="fas fa-exclamation me-1"></i>Po terminie
+                                                    </span>
+                                                {% elif item.deadline_state == 'overdue' %}
+                                                    <span class="badge rounded-pill bg-danger">
+                                                        <i class="fas fa-times me-1"></i>Przeterminowane
+                                                    </span>
+                                                {% elif item.deadline_state == 'approaching' %}
+                                                    <span class="badge rounded-pill bg-info text-dark">
+                                                        <i class="fas fa-clock me-1"></i>Zbliża się
+                                                    </span>
+                                                {% else %}
+                                                    <span class="badge rounded-pill bg-light text-dark border">
+                                                        <i class="fas fa-hourglass-half me-1"></i>W trakcie
+                                                    </span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                <span class="badge rounded-pill
+                                                    {% if item.current_status == 'do zrobienia' %}bg-secondary
+                                                    {% elif item.current_status == 'w trakcie' %}bg-primary
+                                                    {% elif item.current_status == 'do weryfikacji' %}bg-warning text-dark
+                                                    {% elif item.current_status == 'ukończone' %}bg-success
+                                                    {% else %}bg-light text-dark{% endif %}">
                                                     {{ item.current_status }}
                                                 </span>
                                             </td>
