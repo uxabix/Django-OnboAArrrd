@@ -16,6 +16,7 @@ from .decorators import hr_required, user_is_administrator_role
 from .forms import (
     HrAddEmployeeForm,
     HrChangeEmailForm,
+    HrChangeMentorForm,
     HrChangeRoleForm,
     apply_bootstrap_control_widgets,
     mentor_student_roles_queryset,
@@ -77,6 +78,16 @@ def _hr_can_manage_actor(actor, target):
     if rn in ("hr", "admin", "administrator"):
         return False
     return True
+
+
+def _hr_can_change_role_for_target(actor, target):
+    """
+    Role change permission.
+    Superuser / Administrator can also change own role from HR panel.
+    """
+    if actor.pk == target.pk:
+        return actor.is_superuser or user_is_administrator_role(actor)
+    return _hr_can_manage_actor(actor, target)
 
 
 def _redirect_hr_dashboard(request):
@@ -174,8 +185,15 @@ def hr_dashboard(request):
     manageable_ids = {
         u.pk for u in page_obj.object_list if _hr_can_manage_actor(request.user, u)
     }
+    role_manageable_ids = {
+        u.pk for u in page_obj.object_list if _hr_can_change_role_for_target(request.user, u)
+    }
     assignable_roles = list(mentor_student_roles_queryset())
     all_roles = list(Roles.objects.all().order_by("name"))
+    mentor_candidates = list(
+        CustomUserModel.objects.filter(role__name__iexact="Mentor")
+        .order_by("first_name", "last_name", "email")
+    )
     querystring_no_page = _querystring_except_page(request.GET)
 
     return render(
@@ -186,7 +204,9 @@ def hr_dashboard(request):
             "employees": page_obj.object_list,
             "assignable_roles": assignable_roles,
             "all_roles": all_roles,
+            "mentor_candidates": mentor_candidates,
             "manageable_ids": manageable_ids,
+            "role_manageable_ids": role_manageable_ids,
             "preservation": preservation,
             "filter_q": p["q"],
             "filter_role_id": p["role_id"],
@@ -271,7 +291,7 @@ def hr_reactivate_employee(request, user_id):
 def hr_change_role(request, user_id):
     """Set role to Mentor or Student only; demoting a mentor clears mentees."""
     target = get_object_or_404(CustomUserModel, pk=user_id)
-    if not _hr_can_manage_actor(request.user, target):
+    if not _hr_can_change_role_for_target(request.user, target):
         messages.error(request, "Nie możesz zmienić roli tego użytkownika.")
         return _redirect_hr_dashboard(request)
     form = HrChangeRoleForm(request.POST)
@@ -317,6 +337,36 @@ def hr_change_email(request, user_id):
         request,
         f"Zmieniono adres e-mail z „{old_email}” na „{target.email}”.",
     )
+    return _redirect_hr_dashboard(request)
+
+
+@hr_required
+@require_http_methods(["POST"])
+def hr_change_mentor(request, user_id):
+    """Update student's assigned mentor from HR panel."""
+    target = get_object_or_404(CustomUserModel, pk=user_id)
+    if not _hr_can_manage_actor(request.user, target):
+        messages.error(request, "Nie możesz zmienić mentora tego użytkownika.")
+        return _redirect_hr_dashboard(request)
+
+    form = HrChangeMentorForm(request.POST, edited_user=target)
+    if not form.is_valid():
+        err_msg = "Nieprawidłowe dane formularza mentora."
+        non_field = form.non_field_errors()
+        if non_field:
+            err_msg = non_field[0]
+        elif form.errors.get("mentor"):
+            err_msg = form.errors["mentor"][0]
+        messages.error(request, err_msg)
+        return _redirect_hr_dashboard(request)
+
+    mentor = form.cleaned_data["mentor"]
+    target.mentor = mentor
+    target.save(update_fields=["mentor"])
+    if mentor:
+        messages.success(request, f"Przypisano mentora dla {target.email}: {mentor.email}.")
+    else:
+        messages.success(request, f"Usunięto przypisanego mentora dla {target.email}.")
     return _redirect_hr_dashboard(request)
 
 

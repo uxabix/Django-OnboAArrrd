@@ -108,3 +108,37 @@ class HrChangeEmailForm(forms.Form):
         if qs.exists():
             raise forms.ValidationError("Użytkownik z tym adresem e-mail już istnieje.")
         return email
+
+
+class HrChangeMentorForm(forms.Form):
+    """Update assigned mentor for an existing student account."""
+
+    mentor = forms.ModelChoiceField(
+        label="Mentor",
+        queryset=CustomUser.objects.none(),
+        required=False,
+        empty_label="Brak mentora",
+        widget=forms.Select(attrs={"class": "form-select form-select-sm hr-role-select"}),
+    )
+
+    def __init__(self, *args, edited_user=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.edited_user = edited_user
+        self.fields["mentor"].queryset = CustomUser.objects.filter(
+            role__name__iexact="Mentor"
+        ).order_by("first_name", "last_name", "email")
+
+    def clean(self):
+        data = super().clean()
+        mentor = data.get("mentor")
+        target = self.edited_user
+        if not target:
+            return data
+
+        if target.role is None or target.role.name.strip().lower() != "student":
+            raise forms.ValidationError("Mentora można przypisać tylko użytkownikowi z rolą Student.")
+
+        if mentor and mentor.pk == target.pk:
+            self.add_error("mentor", "Użytkownik nie może być swoim mentorem.")
+
+        return data

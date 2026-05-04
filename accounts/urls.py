@@ -18,6 +18,7 @@ urlpatterns = [
     path("hr/zwolnij/<int:user_id>/", hr_views.hr_terminate_employee, name="hr_terminate_employee"),
     path("hr/aktywuj/<int:user_id>/", hr_views.hr_reactivate_employee, name="hr_reactivate_employee"),
     path("hr/rola/<int:user_id>/", hr_views.hr_change_role, name="hr_change_role"),
+    path("hr/mentor/<int:user_id>/", hr_views.hr_change_mentor, name="hr_change_mentor"),
     path("hr/email/<int:user_id>/", hr_views.hr_change_email, name="hr_change_email"),
     path("hr/change-own-password/", hr_views.hr_change_own_password, name="hr_change_own_password"),
     path("hr/reset-password/<int:user_id>/", hr_views.hr_reset_user_password, name="hr_reset_user_password"),
