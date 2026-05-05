@@ -11,6 +11,11 @@
             </div>
             <div class="card-body border-bottom">
                 <form method="get" class="d-flex gap-2">
+                    <input type="hidden" name="show" value="{{ show_mode }}">
+                    <input type="hidden" name="relation" value="{{ relation_filter }}">
+                    <input type="hidden" name="sort" value="{{ sort }}">
+                    <input type="hidden" name="include_tasks" value="{% if include_task_threads %}1{% else %}0{% endif %}">
+                    <input type="hidden" name="include_paths" value="{% if include_path_threads %}1{% else %}0{% endif %}">
                     <input
                         type="search"
                         name="q"
@@ -27,13 +32,73 @@
                         </a>
                     {% endif %}
                 </form>
+                <form method="get" class="row g-2 mt-2">
+                    <div class="col-12">
+                        <div class="btn-group btn-group-sm w-100" role="group" aria-label="Tryb listy kontaktów">
+                            <input type="radio" class="btn-check" name="show" id="show-recent" value="recent" {% if show_mode == 'recent' %}checked{% endif %} onchange="this.form.submit()">
+                            <label class="btn btn-outline-primary" for="show-recent">Ostatnie rozmowy</label>
+                            <input type="radio" class="btn-check" name="show" id="show-all" value="all" {% if show_mode == 'all' %}checked{% endif %} onchange="this.form.submit()">
+                            <label class="btn btn-outline-primary" for="show-all">Wszyscy użytkownicy</label>
+                        </div>
+                    </div>
+                    <div class="col-12">
+                        <select name="relation" class="form-select form-select-sm" onchange="this.form.submit()">
+                            <option value="all" {% if relation_filter == 'all' %}selected{% endif %}>Wszyscy</option>
+                            <option value="mentor" {% if relation_filter == 'mentor' %}selected{% endif %}>Tylko mój mentor</option>
+                            <option value="mentee" {% if relation_filter == 'mentee' %}selected{% endif %}>Tylko moi uczniowie</option>
+                            <option value="related" {% if relation_filter == 'related' %}selected{% endif %}>Mentor + uczniowie</option>
+                            <option value="other" {% if relation_filter == 'other' %}selected{% endif %}>Pozostali użytkownicy</option>
+                        </select>
+                    </div>
+                    <div class="col-12">
+                        <select name="sort" class="form-select form-select-sm" onchange="this.form.submit()">
+                            <option value="name_asc" {% if sort == 'name_asc' %}selected{% endif %}>Sort: Imię/Nazwisko A-Z</option>
+                            <option value="name_desc" {% if sort == 'name_desc' %}selected{% endif %}>Sort: Imię/Nazwisko Z-A</option>
+                            <option value="email_asc" {% if sort == 'email_asc' %}selected{% endif %}>Sort: E-mail A-Z</option>
+                            <option value="email_desc" {% if sort == 'email_desc' %}selected{% endif %}>Sort: E-mail Z-A</option>
+                        </select>
+                    </div>
+                    <div class="col-6">
+                        <input type="hidden" name="include_tasks" value="0">
+                        <div class="form-check form-switch">
+                            <input
+                                class="form-check-input"
+                                type="checkbox"
+                                id="include-tasks"
+                                name="include_tasks"
+                                value="1"
+                                {% if include_task_threads %}checked{% endif %}
+                                onchange="this.form.submit()"
+                            >
+                            <label class="form-check-label small" for="include-tasks">Czaty o zadaniach</label>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <input type="hidden" name="include_paths" value="0">
+                        <div class="form-check form-switch">
+                            <input
+                                class="form-check-input"
+                                type="checkbox"
+                                id="include-paths"
+                                name="include_paths"
+                                value="1"
+                                {% if include_path_threads %}checked{% endif %}
+                                onchange="this.form.submit()"
+                            >
+                            <label class="form-check-label small" for="include-paths">Czaty o ścieżkach</label>
+                        </div>
+                    </div>
+                    {% if query %}
+                        <input type="hidden" name="q" value="{{ query }}">
+                    {% endif %}
+                </form>
                 <small class="text-muted d-block mt-2">
-                    Rozmowy ogólne oraz dedykowane dla zadania i ścieżki.
+                    Filtruj listę oraz decyduj, czy pokazywać dedykowane czaty.
                 </small>
             </div>
             <div class="list-group list-group-flush">
                 {% for thread in threads %}
-                    <a href="{{ thread.url }}"
+                    <a href="{{ thread.url }}{% if list_querystring %}{% if '?' in thread.url %}&{% else %}?{% endif %}{{ list_querystring }}{% endif %}"
                        class="list-group-item list-group-item-action {% if thread.is_selected %}active{% endif %}">
                         <div class="text-truncate">{{ thread.title }}</div>
                         <small class="{% if thread.is_selected %}text-white-50{% else %}text-muted{% endif %}">

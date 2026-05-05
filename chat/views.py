@@ -68,24 +68,73 @@ def _build_thread_meta(current_user, other_user, context_kind=None, context_obj=
 @login_required
 def chat_inbox(request, user_id=None):
     current_user = request.user
-    query = (request.GET.get("q") or "").strip().lower()
+    query = (request.GET.get("q") or "").strip()
     ctx_type = (request.GET.get("ctx_type") or "").strip().lower()
     ctx_id = (request.GET.get("ctx_id") or "").strip()
+    show_mode = (request.GET.get("show") or "recent").strip().lower()
+    if show_mode not in ("recent", "all"):
+        show_mode = "recent"
+    relation_filter = (request.GET.get("relation") or "all").strip().lower()
+    if relation_filter not in ("all", "mentor", "mentee", "related", "other"):
+        relation_filter = "all"
+    sort = (request.GET.get("sort") or "name_asc").strip().lower()
+    sort_map = {
+        "name_asc": ("first_name", "last_name", "email"),
+        "name_desc": ("-first_name", "-last_name", "-email"),
+        "email_asc": ("email",),
+        "email_desc": ("-email",),
+    }
+    if sort not in sort_map:
+        sort = "name_asc"
+    include_task_threads = (request.GET.get("include_tasks") or "1").strip() != "0"
+    include_path_threads = (request.GET.get("include_paths") or "1").strip() != "0"
+    list_query_params = {
+        "show": show_mode,
+        "relation": relation_filter,
+        "sort": sort,
+        "include_tasks": "1" if include_task_threads else "0",
+        "include_paths": "1" if include_path_threads else "0",
+    }
+    if query:
+        list_query_params["q"] = query
+    list_querystring = urlencode(list_query_params)
 
     conversation_user_ids = set(Messages.objects.filter(sender=current_user).values_list("receiver_id", flat=True)) | set(
         Messages.objects.filter(receiver=current_user).values_list("sender_id", flat=True)
     )
     conversation_user_ids.discard(current_user.id)
 
-    related_ids = set(current_user.mentees.values_list("id", flat=True))
+    my_mentor_id = current_user.mentor_id
+    mentee_ids = set(current_user.mentees.values_list("id", flat=True))
+    related_ids = set(mentee_ids)
     if current_user.mentor_id:
         related_ids.add(current_user.mentor_id)
-    all_candidate_ids = conversation_user_ids | related_ids
 
+    base_all_users = CustomUser.objects.exclude(pk=current_user.pk)
+    if show_mode == "recent" and not query:
+        users_qs = CustomUser.objects.filter(pk__in=conversation_user_ids).exclude(pk=current_user.pk)
+    else:
+        users_qs = base_all_users
+
+    if query:
+        users_qs = users_qs.filter(
+            Q(first_name__icontains=query)
+            | Q(last_name__icontains=query)
+            | Q(email__icontains=query)
+        )
+
+    if relation_filter == "mentor":
+        users_qs = users_qs.filter(pk=my_mentor_id) if my_mentor_id else users_qs.none()
+    elif relation_filter == "mentee":
+        users_qs = users_qs.filter(pk__in=mentee_ids) if mentee_ids else users_qs.none()
+    elif relation_filter == "related":
+        users_qs = users_qs.filter(pk__in=related_ids) if related_ids else users_qs.none()
+    elif relation_filter == "other":
+        users_qs = users_qs.exclude(pk__in=related_ids)
+
+    users_qs = users_qs.order_by(*sort_map[sort])
     threads = []
-    for other_user in CustomUser.objects.filter(pk__in=all_candidate_ids).exclude(pk=current_user.pk).order_by(
-        "first_name", "last_name", "email"
-    ):
+    for other_user in users_qs:
         title, subtitle, thread_query = _build_thread_meta(current_user, other_user)
         thread_url = f"/chat/{other_user.id}/"
         if thread_query:
@@ -97,56 +146,61 @@ def chat_inbox(request, user_id=None):
                 "subtitle": subtitle,
                 "query": thread_query,
                 "url": thread_url,
+                "kind": "general",
             }
         )
 
-    task_threads = User_tasks.objects.filter(Q(user_id=current_user) | Q(assigned_by=current_user)).select_related(
-        "user_id", "assigned_by", "task_id"
-    )
-    for user_task in task_threads:
-        other_user = user_task.assigned_by if user_task.user_id_id == current_user.id else user_task.user_id
-        if not other_user:
-            continue
-        title, subtitle, thread_query = _build_thread_meta(
-            current_user,
-            other_user,
-            context_kind="task",
-            context_obj=user_task,
-            context_title=user_task.task_id.title,
+    if include_task_threads:
+        task_threads = User_tasks.objects.filter(Q(user_id=current_user) | Q(assigned_by=current_user)).select_related(
+            "user_id", "assigned_by", "task_id"
         )
-        threads.append(
-            {
-                "user": other_user,
-                "title": title,
-                "subtitle": subtitle,
-                "query": thread_query,
-                "url": f"/chat/{other_user.id}/?{urlencode(thread_query)}",
-            }
-        )
+        for user_task in task_threads:
+            other_user = user_task.assigned_by if user_task.user_id_id == current_user.id else user_task.user_id
+            if not other_user:
+                continue
+            title, subtitle, thread_query = _build_thread_meta(
+                current_user,
+                other_user,
+                context_kind="task",
+                context_obj=user_task,
+                context_title=user_task.task_id.title,
+            )
+            threads.append(
+                {
+                    "user": other_user,
+                    "title": title,
+                    "subtitle": subtitle,
+                    "query": thread_query,
+                    "url": f"/chat/{other_user.id}/?{urlencode(thread_query)}",
+                    "kind": "task",
+                }
+            )
 
-    path_threads = User_paths.objects.filter(Q(user=current_user) | Q(assigned_by=current_user)).select_related(
-        "user", "assigned_by", "path"
-    )
-    for user_path in path_threads:
-        other_user = user_path.assigned_by if user_path.user_id == current_user.id else user_path.user
-        if not other_user:
-            continue
-        title, subtitle, thread_query = _build_thread_meta(
-            current_user,
-            other_user,
-            context_kind="path",
-            context_obj=user_path,
-            context_title=user_path.path.name,
+    if include_path_threads:
+        path_threads = User_paths.objects.filter(Q(user=current_user) | Q(assigned_by=current_user)).select_related(
+            "user", "assigned_by", "path"
         )
-        threads.append(
-            {
-                "user": other_user,
-                "title": title,
-                "subtitle": subtitle,
-                "query": thread_query,
-                "url": f"/chat/{other_user.id}/?{urlencode(thread_query)}",
-            }
-        )
+        for user_path in path_threads:
+            other_user = user_path.assigned_by if user_path.user_id == current_user.id else user_path.user
+            if not other_user:
+                continue
+            title, subtitle, thread_query = _build_thread_meta(
+                current_user,
+                other_user,
+                context_kind="path",
+                context_obj=user_path,
+                context_title=user_path.path.name,
+            )
+            threads.append(
+                {
+                    "user": other_user,
+                    "title": title,
+                    "subtitle": subtitle,
+                    "query": thread_query,
+                    "url": f"/chat/{other_user.id}/?{urlencode(thread_query)}",
+                    "kind": "path",
+                }
+            )
 
     selected_user = None
     context_kind = None
@@ -210,7 +264,7 @@ def chat_inbox(request, user_id=None):
     seen = set()
     for thread in threads:
         search_blob = f"{thread['title']} {thread['user'].email}".lower()
-        if query and query not in search_blob:
+        if query and query.lower() not in search_blob:
             continue
         key = (thread["user"].id, thread["query"].get("ctx_type"), thread["query"].get("ctx_id"))
         if key in seen:
@@ -252,6 +306,12 @@ def chat_inbox(request, user_id=None):
             "selected_chat_subtitle": selected_chat_subtitle,
             "context_kind": context_kind,
             "context_title": context_title,
+            "show_mode": show_mode,
+            "relation_filter": relation_filter,
+            "sort": sort,
+            "include_task_threads": include_task_threads,
+            "include_path_threads": include_path_threads,
+            "list_querystring": list_querystring,
         },
     )
 
