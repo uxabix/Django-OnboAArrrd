@@ -18,6 +18,13 @@
                                 <p class="text-muted small mb-0">{{ item.user_path.path.description|default_if_none:"Brak opisu" }}</p>
                             </div>
                             <div class="card-body">
+                                {% if item.user_path.assigned_by %}
+                                    <div class="mb-3">
+                                        <a href="{% url 'chat:chat_inbox_user' item.user_path.assigned_by.id %}?ctx_type=path&ctx_id={{ item.user_path.user_path_id }}" class="btn btn-sm btn-outline-primary">
+                                            <i class="fas fa-comment-dots me-1"></i> Czat o tej ścieżce
+                                        </a>
+                                    </div>
+                                {% endif %}
                                 <h5 class="card-title small text-uppercase text-muted mb-3">Zadania w tej ścieżce:</h5>
                                 <div class="list-group list-group-flush">
                                     {% if item.tasks %}

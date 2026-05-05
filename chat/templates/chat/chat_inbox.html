@@ -7,19 +7,16 @@
     <div class="col-md-3">
         <div class="card shadow-sm">
             <div class="card-header bg-primary text-white">
-                <h5 class="mb-0"><i class="fas fa-users me-2"></i>Użytkownicy</h5>
+                <h5 class="mb-0"><i class="fas fa-comments me-2"></i>Czaty</h5>
             </div>
             <div class="card-body border-bottom">
                 <form method="get" class="d-flex gap-2">
-                    <input type="hidden" name="show" value="{{ show_mode }}">
-                    <input type="hidden" name="relation" value="{{ relation_filter }}">
-                    <input type="hidden" name="sort" value="{{ sort }}">
                     <input
                         type="search"
                         name="q"
                         value="{{ query }}"
                         class="form-control form-control-sm"
-                        placeholder="Szukaj użytkownika..."
+                        placeholder="Szukaj czatu..."
                     >
                     <button type="submit" class="btn btn-sm btn-primary">
                         <i class="fas fa-search"></i>
@@ -30,69 +27,27 @@
                         </a>
                     {% endif %}
                 </form>
-                <form method="get" class="row g-2 mt-2">
-                    <div class="col-12">
-                        <div class="btn-group btn-group-sm w-100" role="group" aria-label="Tryb listy kontaktów">
-                            <input type="radio" class="btn-check" name="show" id="show-recent" value="recent" {% if show_mode == 'recent' %}checked{% endif %} onchange="this.form.submit()">
-                            <label class="btn btn-outline-primary" for="show-recent">Ostatnie rozmowy</label>
-                            <input type="radio" class="btn-check" name="show" id="show-all" value="all" {% if show_mode == 'all' %}checked{% endif %} onchange="this.form.submit()">
-                            <label class="btn btn-outline-primary" for="show-all">Wszyscy użytkownicy</label>
-                        </div>
-                    </div>
-                    <div class="col-12">
-                        <select name="relation" class="form-select form-select-sm" onchange="this.form.submit()">
-                            <option value="all" {% if relation_filter == 'all' %}selected{% endif %}>Wszyscy</option>
-                            <option value="mentor" {% if relation_filter == 'mentor' %}selected{% endif %}>Tylko mój mentor</option>
-                            <option value="mentee" {% if relation_filter == 'mentee' %}selected{% endif %}>Tylko moi uczniowie</option>
-                            <option value="related" {% if relation_filter == 'related' %}selected{% endif %}>Mentor + uczniowie</option>
-                            <option value="other" {% if relation_filter == 'other' %}selected{% endif %}>Pozostali użytkownicy</option>
-                        </select>
-                    </div>
-                    <div class="col-12">
-                        <select name="sort" class="form-select form-select-sm" onchange="this.form.submit()">
-                            <option value="name_asc" {% if sort == 'name_asc' %}selected{% endif %}>Sort: Imię/Nazwisko A-Z</option>
-                            <option value="name_desc" {% if sort == 'name_desc' %}selected{% endif %}>Sort: Imię/Nazwisko Z-A</option>
-                            <option value="email_asc" {% if sort == 'email_asc' %}selected{% endif %}>Sort: E-mail A-Z</option>
-                            <option value="email_desc" {% if sort == 'email_desc' %}selected{% endif %}>Sort: E-mail Z-A</option>
-                        </select>
-                    </div>
-                    {% if query %}
-                        <input type="hidden" name="q" value="{{ query }}">
-                    {% endif %}
-                </form>
                 <small class="text-muted d-block mt-2">
-                    {% if query %}
-                        Wyniki wyszukiwania użytkowników.
-                    {% elif show_mode == 'all' %}
-                        Pokazano wszystkich użytkowników (zastosowano filtry).
-                    {% else %}
-                        Pokazano ostatnie rozmowy.
-                    {% endif %}
+                    Rozmowy ogólne oraz dedykowane dla zadania i ścieżki.
                 </small>
             </div>
             <div class="list-group list-group-flush">
-                {% for contact in contacts %}
-                    <a href="{% url 'chat:chat_inbox_user' contact.id %}{% if list_querystring %}?{{ list_querystring }}{% endif %}"
-                       class="list-group-item list-group-item-action {% if selected_user and selected_user.id == contact.id %}active{% endif %}">
-                        <div class="text-truncate">{{ contact.get_full_name|default:contact.email }}</div>
-                        <small class="{% if selected_user and selected_user.id == contact.id %}text-white-50{% else %}text-muted{% endif %}">
-                            {{ contact.email }}
+                {% for thread in threads %}
+                    <a href="{{ thread.url }}"
+                       class="list-group-item list-group-item-action {% if thread.is_selected %}active{% endif %}">
+                        <div class="text-truncate">{{ thread.title }}</div>
+                        <small class="{% if thread.is_selected %}text-white-50{% else %}text-muted{% endif %}">
+                            {{ thread.user.email }}
                         </small>
                         <div class="mt-1">
-                            {% if contact.relation_kind == "mentor" %}
-                                <span class="badge bg-warning text-dark">Twój mentor</span>
-                            {% elif contact.relation_kind == "mentee" %}
-                                <span class="badge bg-info text-dark">Twój uczeń</span>
-                            {% endif %}
+                            <span class="badge {% if thread.query.ctx_type == 'task' %}bg-warning text-dark{% elif thread.query.ctx_type == 'path' %}bg-info text-dark{% else %}bg-secondary{% endif %}">
+                                {{ thread.subtitle }}
+                            </span>
                         </div>
                     </a>
                 {% empty %}
                     <div class="list-group-item text-muted">
-                        {% if query %}
-                            Brak użytkowników pasujących do wyszukiwania.
-                        {% else %}
-                            Brak rozmów. Użyj wyszukiwarki, aby rozpocząć czat.
-                        {% endif %}
+                        Brak czatów do wyświetlenia.
                     </div>
                 {% endfor %}
             </div>
@@ -105,7 +60,10 @@
                 <div class="card-header bg-white d-flex justify-content-between align-items-center">
                     <h5 class="mb-0">
                         <i class="fas fa-comment-dots me-2 text-primary"></i>
-                        Czat z: <strong>{{ selected_user.get_full_name|default:selected_user.email }}</strong>
+                        <strong>{{ selected_chat_title|default:selected_user.email }}</strong>
+                        {% if context_kind %}
+                            <small class="text-muted d-block mt-1">{{ selected_chat_subtitle }}</small>
+                        {% endif %}
                     </h5>
                     <a href="{% url 'accounts:logged' %}" class="btn btn-sm btn-outline-secondary">
                         <i class="fas fa-arrow-left me-1"></i> Powrót
@@ -117,7 +75,13 @@
                         <div class="mb-3 d-flex {% if msg.sender == user %}justify-content-end{% else %}justify-content-start{% endif %}" data-message-id="{{ msg.message_id }}">
                             <div class="p-3 rounded-3 shadow-sm {% if msg.sender == user %}bg-primary text-white{% else %}bg-white text-dark{% endif %}" style="max-width: 75%;">
                                 <div class="small fw-bold mb-1">
-                                    {% if msg.sender == user %}Ty{% else %}{{ msg.sender.get_full_name|default:msg.sender.email }}{% endif %}
+                                    {% if msg.sender == user %}
+                                        Ty
+                                    {% elif msg.sender.first_name or msg.sender.last_name %}
+                                        {{ msg.sender.first_name }} {{ msg.sender.last_name }}
+                                    {% else %}
+                                        {{ msg.sender.email }}
+                                    {% endif %}
                                 </div>
                                 <div class="text-break">{{ msg.text }}</div>
                                 <div class="text-end mt-1" style="font-size: 0.7rem; opacity: 0.8;">
@@ -138,7 +102,7 @@
                         id="chat-form"
                         class="row g-2"
                         method="post"
-                        action="{% url 'chat:chat_inbox_user' selected_user.id %}{% if list_querystring %}?{{ list_querystring }}{% endif %}"
+                        action="{% url 'chat:chat_inbox_user' selected_user.id %}{% if selected_querystring %}?{{ selected_querystring }}{% endif %}"
                     >
                         {% csrf_token %}
                         <div class="col">
@@ -172,7 +136,8 @@ const chatBox = document.getElementById("chat-box");
 const chatForm = document.getElementById("chat-form");
 const messageInput = document.getElementById("message-input");
 const currentUserEmail = "{{ user.email|escapejs }}";
-const updatesUrl = "{% url 'chat:chat_updates' selected_user.id %}";
+const updatesBaseUrl = "{% url 'chat:chat_updates' selected_user.id %}";
+const selectedQueryString = "{{ selected_querystring|escapejs }}";
 const knownMessageIds = new Set();
 
 let lastMessageId = 0;
@@ -229,7 +194,8 @@ if (chatBox) {
 }
 
 const wsProtocol = window.location.protocol === "https:" ? "wss" : "ws";
-const wsUrl = `${wsProtocol}://${window.location.host}/ws/chat/{{ selected_user.id }}/`;
+const wsSuffix = selectedQueryString ? `?${selectedQueryString}` : "";
+const wsUrl = `${wsProtocol}://${window.location.host}/ws/chat/{{ selected_user.id }}/${wsSuffix}`;
 let socket = null;
 let socketReady = false;
 let reconnectTimer = null;
@@ -294,7 +260,9 @@ chatForm.onsubmit = function(e) {
 
 async function pollUpdates() {
     try {
-        const response = await fetch(`${updatesUrl}?last_id=${lastMessageId}`, {
+        const params = new URLSearchParams(selectedQueryString);
+        params.set("last_id", String(lastMessageId));
+        const response = await fetch(`${updatesBaseUrl}?${params.toString()}`, {
             headers: { "X-Requested-With": "XMLHttpRequest" },
             credentials: "same-origin",
         });

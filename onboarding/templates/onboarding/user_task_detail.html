@@ -134,6 +134,11 @@
                     <a href="{% url 'onboarding:user_tasks_list' %}" class="btn btn-outline-secondary">
                         <i class="fas fa-arrow-left me-1"></i> Powrót do listy
                     </a>
+                    {% if user_task.assigned_by %}
+                        <a href="{% url 'chat:chat_inbox_user' user_task.assigned_by.id %}?ctx_type=task&ctx_id={{ user_task.user_tasks_id }}" class="btn btn-outline-primary">
+                            <i class="fas fa-comment-dots me-1"></i> Czat o tym zadaniu
+                        </a>
+                    {% endif %}
                     <a href="{% url 'onboarding:user_tasks_calendar' %}" class="btn btn-outline-secondary">
                         <i class="fas fa-calendar-alt me-1"></i> Kalendarz
                     </a>

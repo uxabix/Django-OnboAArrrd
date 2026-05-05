@@ -107,6 +107,10 @@
                                                    class="btn btn-outline-danger btn-sm" title="Usuń przypisanie">
                                                     <i class="fas fa-trash"></i>
                                                 </a>
+                                                <a href="{% url 'chat:chat_inbox_user' selected_student.id %}?ctx_type=path&ctx_id={{ user_path.user_path_id }}"
+                                                   class="btn btn-outline-primary btn-sm" title="Czat o ścieżce">
+                                                    <i class="fas fa-comment-dots"></i>
+                                                </a>
                                             </td>
                                         </tr>
                                     {% endfor %}
@@ -299,6 +303,10 @@
                                                     <a href="{% url 'onboarding:mentor_delete_user_task' item.user_task.user_tasks_id %}" 
                                                        class="btn btn-outline-danger" title="Usuń">
                                                         <i class="fas fa-trash"></i>
+                                                    </a>
+                                                    <a href="{% url 'chat:chat_inbox_user' selected_student.id %}?ctx_type=task&ctx_id={{ item.user_task.user_tasks_id }}"
+                                                       class="btn btn-outline-primary" title="Czat o zadaniu">
+                                                        <i class="fas fa-comment-dots"></i>
                                                     </a>
                                                 </div>
 

@@ -1,6 +1,10 @@
 import json
+from urllib.parse import parse_qs
+
 from channels.generic.websocket import AsyncWebsocketConsumer
 from django.contrib.auth import get_user_model
+
+from onboarding.models import User_paths, User_tasks
 from .models import Messages
 
 
@@ -24,7 +28,37 @@ class ChatConsumer(AsyncWebsocketConsumer):
             await self.close()
             return
 
-        self.room_name = f"chat_{min(self.user.id, self.other_user_id)}_{max(self.user.id, self.other_user_id)}"
+        query_data = parse_qs(self.scope.get("query_string", b"").decode())
+        self.ctx_type = (query_data.get("ctx_type", [""])[0] or "").strip().lower()
+        self.ctx_id = (query_data.get("ctx_id", [""])[0] or "").strip()
+        self.user_task = None
+        self.user_path = None
+
+        try:
+            if self.ctx_type and self.ctx_id.isdigit():
+                if self.ctx_type == "task":
+                    self.user_task = await User_tasks.objects.select_related("user_id", "assigned_by").aget(pk=int(self.ctx_id))
+                    participants = {self.user_task.user_id_id, self.user_task.assigned_by_id}
+                    if self.user.id not in participants or self.other_user_id not in participants:
+                        await self.close()
+                        return
+                elif self.ctx_type == "path":
+                    self.user_path = await User_paths.objects.select_related("user", "assigned_by").aget(pk=int(self.ctx_id))
+                    participants = {self.user_path.user_id, self.user_path.assigned_by_id}
+                    if self.user.id not in participants or self.other_user_id not in participants:
+                        await self.close()
+                        return
+                else:
+                    self.ctx_type = ""
+                    self.ctx_id = ""
+        except (User_tasks.DoesNotExist, User_paths.DoesNotExist):
+            await self.close()
+            return
+
+        context_room = "general"
+        if self.ctx_type and self.ctx_id:
+            context_room = f"{self.ctx_type}_{self.ctx_id}"
+        self.room_name = f"chat_{min(self.user.id, self.other_user_id)}_{max(self.user.id, self.other_user_id)}_{context_room}"
         self.room_group_name = f"chat_{self.room_name}"
 
         await self.channel_layer.group_add(
@@ -50,7 +84,9 @@ class ChatConsumer(AsyncWebsocketConsumer):
         msg = await Messages.objects.acreate(
             sender=self.user,
             receiver=receiver,
-            text=message
+            text=message,
+            user_task=self.user_task,
+            user_path=self.user_path,
         )
 
         # wysyłka do grupy
