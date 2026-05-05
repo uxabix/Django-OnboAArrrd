@@ -88,6 +88,9 @@ def chat_inbox(request, user_id=None):
         sort = "name_asc"
     include_task_threads = (request.GET.get("include_tasks") or "1").strip() != "0"
     include_path_threads = (request.GET.get("include_paths") or "1").strip() != "0"
+    secondary_user_id_raw = (request.GET.get("s_user_id") or "").strip()
+    secondary_ctx_type = (request.GET.get("s_ctx_type") or "").strip().lower()
+    secondary_ctx_id = (request.GET.get("s_ctx_id") or "").strip()
     list_query_params = {
         "show": show_mode,
         "relation": relation_filter,
@@ -97,6 +100,11 @@ def chat_inbox(request, user_id=None):
     }
     if query:
         list_query_params["q"] = query
+    if secondary_user_id_raw:
+        list_query_params["s_user_id"] = secondary_user_id_raw
+    if secondary_ctx_type and secondary_ctx_id:
+        list_query_params["s_ctx_type"] = secondary_ctx_type
+        list_query_params["s_ctx_id"] = secondary_ctx_id
     list_querystring = urlencode(list_query_params)
 
     conversation_user_ids = set(Messages.objects.filter(sender=current_user).values_list("receiver_id", flat=True)) | set(
@@ -202,63 +210,66 @@ def chat_inbox(request, user_id=None):
                 }
             )
 
-    selected_user = None
-    context_kind = None
-    context_obj = None
-    context_title = None
-    if user_id is not None:
-        selected_user = get_object_or_404(CustomUser.objects.exclude(pk=current_user.pk), pk=user_id)
-        context_kind, context_obj, context_title = _load_context(current_user, selected_user, ctx_type, ctx_id)
-    elif threads:
-        selected_user = threads[0]["user"]
+    def _resolve_thread(target_user_id, target_ctx_type, target_ctx_id):
+        if target_user_id is None:
+            return None, None, None, None
+        selected = get_object_or_404(CustomUser.objects.exclude(pk=current_user.pk), pk=target_user_id)
+        kind, obj, title = _load_context(current_user, selected, target_ctx_type, target_ctx_id)
+        selected_query_local = {}
+        if kind and obj:
+            selected_query_local = {"ctx_type": kind, "ctx_id": obj.pk}
+        chat_messages_local = Messages.objects.none()
+        base_qs = Messages.objects.filter(
+            Q(sender=current_user, receiver=selected)
+            | Q(sender=selected, receiver=current_user)
+        )
+        if kind == "task":
+            chat_messages_local = base_qs.filter(user_task=obj, user_path__isnull=True).order_by("sent_at")
+        elif kind == "path":
+            chat_messages_local = base_qs.filter(user_path=obj, user_task__isnull=True).order_by("sent_at")
+        else:
+            chat_messages_local = base_qs.filter(user_task__isnull=True, user_path__isnull=True).order_by("sent_at")
+        chat_title, chat_subtitle, _ = _build_thread_meta(current_user, selected, kind, obj, title)
+        return selected, kind, selected_query_local, {
+            "messages": chat_messages_local,
+            "chat_title": chat_title,
+            "chat_subtitle": chat_subtitle,
+        }
 
-    if request.method == "POST" and selected_user is not None:
+    primary_user_id = user_id
+    if primary_user_id is None and threads:
+        primary_user_id = threads[0]["user"].id
+
+    selected_user, context_kind, selected_query, primary_meta = _resolve_thread(primary_user_id, ctx_type, ctx_id)
+    secondary_user = None
+    secondary_context_kind = None
+    secondary_selected_query = {}
+    secondary_meta = {"messages": Messages.objects.none(), "chat_title": "", "chat_subtitle": ""}
+    if secondary_user_id_raw.isdigit():
+        secondary_user, secondary_context_kind, secondary_selected_query, secondary_meta = _resolve_thread(
+            int(secondary_user_id_raw), secondary_ctx_type, secondary_ctx_id
+        )
+
+    if request.method == "POST":
         form = MessageForm(request.POST)
         if form.is_valid():
+            target_slot = (request.POST.get("chat_slot") or "primary").strip().lower()
+            active_user = selected_user if target_slot != "secondary" else secondary_user
+            active_kind = context_kind if target_slot != "secondary" else secondary_context_kind
+            active_query = selected_query if target_slot != "secondary" else secondary_selected_query
+            if active_user is None:
+                return redirect("chat:chat_inbox")
             msg = form.save(commit=False)
             msg.sender = current_user
-            msg.receiver = selected_user
-            if context_kind == "task":
-                msg.user_task = context_obj
-            elif context_kind == "path":
-                msg.user_path = context_obj
+            msg.receiver = active_user
+            if active_kind == "task":
+                msg.user_task_id = active_query.get("ctx_id")
+            elif active_kind == "path":
+                msg.user_path_id = active_query.get("ctx_id")
             msg.save()
-            redirect_params = {}
-            if context_kind and context_obj:
-                redirect_params = {"ctx_type": context_kind, "ctx_id": context_obj.pk}
-            base_url = f"/chat/{selected_user.id}/"
-            if redirect_params:
-                base_url = f"{base_url}?{urlencode(redirect_params)}"
-            return redirect(base_url)
+            return redirect(request.get_full_path())
     else:
         form = MessageForm()
-
-    chat_messages = Messages.objects.none()
-    if selected_user is not None:
-        base_qs = Messages.objects.filter(
-            Q(sender=current_user, receiver=selected_user)
-            | Q(sender=selected_user, receiver=current_user)
-        )
-        if context_kind == "task":
-            chat_messages = base_qs.filter(user_task=context_obj, user_path__isnull=True).order_by("sent_at")
-        elif context_kind == "path":
-            chat_messages = base_qs.filter(user_path=context_obj, user_task__isnull=True).order_by("sent_at")
-        else:
-            chat_messages = base_qs.filter(user_task__isnull=True, user_path__isnull=True).order_by("sent_at")
-
-    selected_query = {}
-    if context_kind and context_obj:
-        selected_query = {"ctx_type": context_kind, "ctx_id": context_obj.pk}
-    selected_url = ""
-    selected_chat_title = ""
-    selected_chat_subtitle = ""
-    if selected_user is not None:
-        selected_chat_title, selected_chat_subtitle, _ = _build_thread_meta(
-            current_user, selected_user, context_kind, context_obj, context_title
-        )
-        selected_url = f"/chat/{selected_user.id}/"
-        if selected_query:
-            selected_url += f"?{urlencode(selected_query)}"
 
     normalized_threads = []
     seen = set()
@@ -276,21 +287,45 @@ def chat_inbox(request, user_id=None):
             and thread["query"].get("ctx_type") == selected_query.get("ctx_type")
             and str(thread["query"].get("ctx_id", "")) == str(selected_query.get("ctx_id", ""))
         )
+        thread["is_selected_secondary"] = (
+            secondary_user is not None
+            and thread["user"].id == secondary_user.id
+            and thread["query"].get("ctx_type") == secondary_selected_query.get("ctx_type")
+            and str(thread["query"].get("ctx_id", "")) == str(secondary_selected_query.get("ctx_id", ""))
+        )
+
+        primary_params = {}
+        if thread["query"].get("ctx_type") and thread["query"].get("ctx_id"):
+            primary_params = {"ctx_type": thread["query"]["ctx_type"], "ctx_id": thread["query"]["ctx_id"]}
+        secondary_params = {}
+        if secondary_user is not None:
+            secondary_params["s_user_id"] = secondary_user.id
+            if secondary_selected_query.get("ctx_type") and secondary_selected_query.get("ctx_id"):
+                secondary_params["s_ctx_type"] = secondary_selected_query["ctx_type"]
+                secondary_params["s_ctx_id"] = secondary_selected_query["ctx_id"]
+        primary_open_qs = urlencode({**list_query_params, **secondary_params, **primary_params})
+
+        secondary_open_params = {"s_user_id": thread["user"].id}
+        if thread["query"].get("ctx_type") and thread["query"].get("ctx_id"):
+            secondary_open_params["s_ctx_type"] = thread["query"]["ctx_type"]
+            secondary_open_params["s_ctx_id"] = thread["query"]["ctx_id"]
+        if selected_user is not None:
+            secondary_open_params["ctx_type"] = selected_query.get("ctx_type", "")
+            secondary_open_params["ctx_id"] = selected_query.get("ctx_id", "")
+        secondary_open_qs = urlencode(
+            {k: v for k, v in {**list_query_params, **secondary_open_params}.items() if v != ""}
+        )
+        thread["open_primary_url"] = f"/chat/{thread['user'].id}/?{primary_open_qs}"
+        thread["open_secondary_url"] = f"/chat/{selected_user.id if selected_user else thread['user'].id}/?{secondary_open_qs}"
         normalized_threads.append(thread)
 
+    close_secondary_url = ""
     if selected_user is not None:
-        selected_key = (selected_user.id, selected_query.get("ctx_type"), selected_query.get("ctx_id"))
-        if selected_key not in seen:
-            normalized_threads.append(
-                {
-                    "user": selected_user,
-                    "title": selected_chat_title or _display_name(selected_user),
-                    "subtitle": selected_chat_subtitle or "Rozmowa",
-                    "query": selected_query,
-                    "url": selected_url,
-                    "is_selected": True,
-                }
-            )
+        primary_only_params = {**list_query_params}
+        if selected_query.get("ctx_type") and selected_query.get("ctx_id"):
+            primary_only_params["ctx_type"] = selected_query["ctx_type"]
+            primary_only_params["ctx_id"] = selected_query["ctx_id"]
+        close_secondary_url = f"/chat/{selected_user.id}/?{urlencode(primary_only_params)}"
 
     return render(
         request,
@@ -298,20 +333,26 @@ def chat_inbox(request, user_id=None):
         {
             "threads": normalized_threads,
             "selected_user": selected_user,
-            "messages": chat_messages,
+            "messages": primary_meta["messages"] if primary_meta else Messages.objects.none(),
             "form": form,
             "query": query,
             "selected_querystring": urlencode(selected_query),
-            "selected_chat_title": selected_chat_title,
-            "selected_chat_subtitle": selected_chat_subtitle,
+            "selected_chat_title": primary_meta["chat_title"] if primary_meta else "",
+            "selected_chat_subtitle": primary_meta["chat_subtitle"] if primary_meta else "",
             "context_kind": context_kind,
-            "context_title": context_title,
+            "secondary_selected_user": secondary_user,
+            "secondary_messages": secondary_meta["messages"],
+            "secondary_selected_querystring": urlencode(secondary_selected_query),
+            "secondary_selected_chat_title": secondary_meta["chat_title"],
+            "secondary_selected_chat_subtitle": secondary_meta["chat_subtitle"],
+            "secondary_context_kind": secondary_context_kind,
             "show_mode": show_mode,
             "relation_filter": relation_filter,
             "sort": sort,
             "include_task_threads": include_task_threads,
             "include_path_threads": include_path_threads,
             "list_querystring": list_querystring,
+            "close_secondary_url": close_secondary_url,
         },
     )
 
