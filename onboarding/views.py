@@ -1,6 +1,7 @@
 import calendar
 import json
 from datetime import timedelta
+from collections import defaultdict
 from django.utils.dateparse import parse_date
 
 from django.contrib import messages
@@ -33,6 +34,24 @@ DEADLINE_FILTERS = {
     'approaching': 'Zbliżający się termin',
     'overdue': 'Przeterminowane',
     'completed': 'Ukończone / oddane',
+}
+
+PATH_SORT_OPTIONS = {
+    '-assigned_at': 'Najnowsze przypisanie',
+    'assigned_at': 'Najstarsze przypisanie',
+    'name': 'Nazwa A-Z',
+    '-name': 'Nazwa Z-A',
+    '-tasks_total': 'Najwięcej zadań',
+    '-tasks_open': 'Najwięcej aktywnych',
+}
+
+TASK_SORT_OPTIONS = {
+    'path_order': 'Kolejność w ścieżce',
+    'title': 'Tytuł A-Z',
+    '-title': 'Tytuł Z-A',
+    'deadline': 'Deadline rosnąco',
+    '-deadline': 'Deadline malejąco',
+    'status': 'Status A-Z',
 }
 
 
@@ -251,23 +270,109 @@ def user_paths_list(request):
     return render(request, 'onboarding/user_paths_list.html', {'paths': paths})
 
 
+@login_required
 def user_competency_paths_with_tasks(request):
-    if not request.user.is_authenticated:
-        paths_with_tasks = []
-    else:
-        # Pobierz wszystkie ścieżki przypisane do użytkownika
-        user_paths = request.user.user_paths.all().select_related('path').order_by('path_id')
+    path_sort = request.GET.get('path_sort', '-assigned_at')
+    task_sort = request.GET.get('task_sort', 'path_order')
+    show_completed = request.GET.get('show_completed', '0') == '1'
 
-        # Przygotuj listę słowników: każda ścieżka + zadania w niej
-        paths_with_tasks = []
-        for up in user_paths:
-            tasks = up.path.competency_path.all()  # Tasks związane z tą ścieżką
-            paths_with_tasks.append({
-                'user_path': up,
-                'tasks': tasks
+    if path_sort not in PATH_SORT_OPTIONS:
+        path_sort = '-assigned_at'
+    if task_sort not in TASK_SORT_OPTIONS:
+        task_sort = 'path_order'
+
+    user_paths = (
+        request.user.user_paths.all()
+        .select_related('path', 'assigned_by')
+        .prefetch_related('path__competency_path')
+    )
+
+    # Zadania przypisane konkretnemu użytkownikowi (z historią statusów).
+    user_tasks = (
+        User_tasks.objects.filter(user_id=request.user)
+        .select_related('task_id', 'task_id__path')
+        .prefetch_related('statuses')
+    )
+
+    task_map = defaultdict(list)
+    for user_task in user_tasks:
+        if user_task.task_id and user_task.task_id.path_id:
+            task_map[user_task.task_id.path_id].append(user_task)
+
+    paths_with_tasks = []
+    for up in user_paths:
+        path_tasks = list(up.path.competency_path.all().select_related('task_type'))
+        user_tasks_by_task_id = {
+            ut.task_id_id: ut
+            for ut in sorted(task_map.get(up.path_id, []), key=lambda item: item.created_at, reverse=True)
+        }
+
+        tasks = []
+        for task in path_tasks:
+            user_task = user_tasks_by_task_id.get(task.task_id)
+            current_status = user_task.current_status if user_task else Task_status.Status.DO_ZROBIENIA
+            deadline_state = user_task.deadline_state if user_task else 'on_track'
+            is_completed = bool(user_task and user_task.is_completed)
+
+            tasks.append({
+                'task': task,
+                'user_task': user_task,
+                'current_status': current_status,
+                'deadline_state': deadline_state,
+                'is_completed': is_completed,
+                'deadline': user_task.deadline if user_task else None,
+                'path_order': task.path_order if task.path_order is not None else 99999,
             })
 
-    return render(request, 'onboarding/user_competency_paths_with_tasks.html', {'paths_with_tasks': paths_with_tasks})
+        if task_sort == 'title':
+            tasks.sort(key=lambda x: (x['task'].title or '').lower())
+        elif task_sort == '-title':
+            tasks.sort(key=lambda x: (x['task'].title or '').lower(), reverse=True)
+        elif task_sort == 'deadline':
+            tasks.sort(key=lambda x: (x['deadline'] is None, x['deadline'] or timezone.now().date()))
+        elif task_sort == '-deadline':
+            tasks.sort(key=lambda x: (x['deadline'] is None, x['deadline'] or timezone.now().date()), reverse=True)
+        elif task_sort == 'status':
+            tasks.sort(key=lambda x: (x['current_status'] or '').lower())
+        else:
+            tasks.sort(key=lambda x: (x['path_order'], (x['task'].title or '').lower()))
+
+        visible_tasks = tasks if show_completed else [t for t in tasks if not t['is_completed']]
+
+        paths_with_tasks.append({
+            'user_path': up,
+            'tasks': visible_tasks,
+            'total_tasks_count': len(tasks),
+            'visible_tasks_count': len(visible_tasks),
+            'completed_tasks_count': len([t for t in tasks if t['is_completed']]),
+            'open_tasks_count': len([t for t in tasks if not t['is_completed']]),
+        })
+
+    if path_sort == 'name':
+        paths_with_tasks.sort(key=lambda x: (x['user_path'].path.name or '').lower())
+    elif path_sort == '-name':
+        paths_with_tasks.sort(key=lambda x: (x['user_path'].path.name or '').lower(), reverse=True)
+    elif path_sort == 'assigned_at':
+        paths_with_tasks.sort(key=lambda x: x['user_path'].assigned_at)
+    elif path_sort == '-tasks_total':
+        paths_with_tasks.sort(key=lambda x: x['total_tasks_count'], reverse=True)
+    elif path_sort == '-tasks_open':
+        paths_with_tasks.sort(key=lambda x: x['open_tasks_count'], reverse=True)
+    else:
+        paths_with_tasks.sort(key=lambda x: x['user_path'].assigned_at, reverse=True)
+
+    return render(
+        request,
+        'onboarding/user_competency_paths_with_tasks.html',
+        {
+            'paths_with_tasks': paths_with_tasks,
+            'path_sort': path_sort,
+            'task_sort': task_sort,
+            'show_completed': show_completed,
+            'path_sort_options': PATH_SORT_OPTIONS,
+            'task_sort_options': TASK_SORT_OPTIONS,
+        }
+    )
 
 @login_required
 def user_task_detail(request, user_task_id):
