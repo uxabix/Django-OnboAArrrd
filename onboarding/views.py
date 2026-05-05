@@ -4,6 +4,8 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db import models
+from django.db import transaction
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
@@ -11,6 +13,7 @@ from .forms import CompetencyPathForm, TaskForm, UserPathForm, UserTaskForm
 from .models import (
     Competency_paths,
     Task_status,
+    Task_types,
     Tasks,
     User_paths,
     User_tasks,
@@ -616,18 +619,82 @@ def mentor_change_user_task_status(request, user_task_id):
 def mentor_create_path(request):
     mentor = request.user
 
-    # Sprawdzenie, czy użytkownik jest mentorem
     if not mentor.is_mentor:
         return render(request, "exceptions/no_students.html")
 
     if request.method == 'POST':
         form = CompetencyPathForm(request.POST)
+        selected_task_ids_raw = request.POST.get('selected_tasks', '')
+        task_ids = [int(task_id) for task_id in selected_task_ids_raw.split(',') if task_id.strip().isdigit()]
+
         if form.is_valid():
-            competency_path = form.save()
+            with transaction.atomic():
+                competency_path = form.save()
+                for index, task_id in enumerate(task_ids, start=1):
+                    Tasks.objects.filter(task_id=task_id).update(
+                        path=competency_path,
+                        path_order=index,
+                    )
             return redirect('onboarding:mentor_task_management')
     else:
         form = CompetencyPathForm()
 
+    task_types = Task_types.objects.order_by('task_type')
+    existing_tasks = (
+        Tasks.objects
+        .select_related('path', 'task_type')
+        .order_by('path__name', 'path_order', 'title')
+    )
+
     return render(request, 'onboarding/mentor_create_path.html', {
         'form': form,
+        'task_types': task_types,
+        'existing_tasks': existing_tasks,
+    })
+
+
+@login_required
+def mentor_create_task_inline(request):
+    mentor = request.user
+
+    if not mentor.is_mentor:
+        return JsonResponse({'ok': False, 'error': 'Brak uprawnień.'}, status=403)
+
+    if request.method != 'POST':
+        return JsonResponse({'ok': False, 'error': 'Nieprawidłowa metoda.'}, status=405)
+
+    title = (request.POST.get('title') or '').strip()
+    description = (request.POST.get('description') or '').strip()
+    task_type_id = request.POST.get('task_type')
+    is_public = request.POST.get('public') == 'on'
+    need_verification = request.POST.get('need_verification') == 'on'
+
+    if not title:
+        return JsonResponse({'ok': False, 'error': 'Tytuł jest wymagany.'}, status=400)
+
+    task_type = None
+    if task_type_id:
+        task_type = Task_types.objects.filter(task_type_id=task_type_id).first()
+        if task_type is None:
+            return JsonResponse({'ok': False, 'error': 'Nieprawidłowy typ zadania.'}, status=400)
+
+    task = Tasks.objects.create(
+        title=title,
+        description=description,
+        task_type=task_type,
+        public=is_public,
+        need_verification=need_verification,
+    )
+
+    return JsonResponse({
+        'ok': True,
+        'task': {
+            'id': task.task_id,
+            'title': task.title,
+            'description': task.description or '',
+            'task_type': task.task_type.task_type if task.task_type else 'Brak typu',
+            'path_name': 'Brak ścieżki',
+            'public': bool(task.public),
+            'need_verification': bool(task.need_verification),
+        }
     })
