@@ -1,6 +1,7 @@
 from django import forms
 from django.contrib.auth import get_user_model
 from django.db.models import Q
+from django.utils import timezone
 
 from .models import Roles
 
@@ -142,3 +143,109 @@ class HrChangeMentorForm(forms.Form):
             self.add_error("mentor", "Użytkownik nie może być swoim mentorem.")
 
         return data
+
+
+class HrDbExportForm(forms.Form):
+    """Choose a serializer format for full database export."""
+
+    FORMAT_CHOICES = (
+        ("json", "JSON (.json)"),
+        ("xml", "XML (.xml)"),
+        ("yaml", "YAML (.yaml)"),
+    )
+
+    export_format = forms.ChoiceField(
+        label="Format eksportu",
+        choices=FORMAT_CHOICES,
+        initial="json",
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
+
+    DATA_SCOPE_CHOICES = (
+        ("full_db", "Pełna baza danych"),
+        ("users_only", "Tylko użytkownicy i role"),
+        ("users_mentors_tasks", "Użytkownicy + mentorzy + zadania"),
+    )
+    data_scope = forms.ChoiceField(
+        label="Zakres danych",
+        choices=DATA_SCOPE_CHOICES,
+        initial="full_db",
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
+    only_selected = forms.BooleanField(
+        label="Eksportuj tylko wybrane rekordy (po ID)",
+        required=False,
+        widget=forms.CheckboxInput(attrs={"class": "form-check-input"}),
+    )
+    selected_user_ids = forms.CharField(
+        label="ID użytkowników",
+        required=False,
+        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "np. 1,2,5"}),
+    )
+    selected_task_ids = forms.CharField(
+        label="ID zadań",
+        required=False,
+        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "np. 10,11"}),
+    )
+
+    @staticmethod
+    def _parse_ids(raw_value):
+        if not raw_value:
+            return []
+        out = []
+        for part in raw_value.split(","):
+            part = part.strip()
+            if not part:
+                continue
+            if not part.isdigit():
+                raise forms.ValidationError("ID muszą być liczbami całkowitymi rozdzielonymi przecinkami.")
+            out.append(int(part))
+        return sorted(set(out))
+
+    def clean(self):
+        cleaned = super().clean()
+        cleaned["selected_user_ids_list"] = self._parse_ids(cleaned.get("selected_user_ids", ""))
+        cleaned["selected_task_ids_list"] = self._parse_ids(cleaned.get("selected_task_ids", ""))
+        if cleaned.get("only_selected"):
+            scope = cleaned.get("data_scope")
+            has_users = bool(cleaned["selected_user_ids_list"])
+            has_tasks = bool(cleaned["selected_task_ids_list"])
+            if scope == "users_only" and not has_users:
+                self.add_error("selected_user_ids", "Podaj co najmniej jedno ID użytkownika.")
+            if scope == "users_mentors_tasks" and not (has_users or has_tasks):
+                self.add_error(
+                    "selected_user_ids",
+                    "Dla tego zakresu podaj ID użytkowników i/lub ID zadań.",
+                )
+            if scope == "full_db":
+                raise forms.ValidationError("Dla pełnej bazy nie używaj filtrowania po ID.")
+        return cleaned
+
+    def build_filename(self):
+        fmt = self.cleaned_data["export_format"]
+        scope = self.cleaned_data.get("data_scope", "full_db")
+        timestamp = timezone.now().strftime("%Y%m%d_%H%M%S")
+        extension = "yaml" if fmt == "yaml" else fmt
+        return f"db_export_{scope}_{timestamp}.{extension}"
+
+
+class HrDbImportForm(forms.Form):
+    """Upload fixture-like database dump accepted by loaddata."""
+
+    data_file = forms.FileField(
+        label="Plik kopii danych",
+        widget=forms.ClearableFileInput(attrs={"class": "form-control", "accept": ".json,.xml,.yaml,.yml"}),
+    )
+    overwrite_existing = forms.BooleanField(
+        label="Nadpisuj istniejące rekordy",
+        required=False,
+        widget=forms.CheckboxInput(attrs={"class": "form-check-input"}),
+    )
+
+    def clean_data_file(self):
+        uploaded = self.cleaned_data["data_file"]
+        filename = (uploaded.name or "").lower()
+        allowed_suffixes = (".json", ".xml", ".yaml", ".yml")
+        if not filename.endswith(allowed_suffixes):
+            raise forms.ValidationError("Dozwolone rozszerzenia: .json, .xml, .yaml, .yml.")
+        return uploaded

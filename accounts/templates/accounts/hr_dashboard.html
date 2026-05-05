@@ -113,6 +113,75 @@
 
 <div class="card shadow-sm mb-3">
     <div class="card-header bg-light">
+        <h2 class="h6 mb-0"><i class="fas fa-database me-2"></i>Import / eksport danych bazy</h2>
+    </div>
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-12 col-lg-6">
+                <form method="post" action="{% url 'accounts:hr_export_database' %}" class="row g-2 align-items-end">
+                    {% csrf_token %}
+                    <div class="col-md-6">
+                        <label class="form-label" for="{{ db_export_form.export_format.id_for_label }}">Format eksportu</label>
+                        {{ db_export_form.export_format }}
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="{{ db_export_form.data_scope.id_for_label }}">Zakres danych</label>
+                        {{ db_export_form.data_scope }}
+                    </div>
+                    <div class="col-12">
+                        <div class="form-check">
+                            {{ db_export_form.only_selected }}
+                            <label class="form-check-label" for="{{ db_export_form.only_selected.id_for_label }}">
+                                Eksportuj tylko wybrane rekordy (po ID)
+                            </label>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="{{ db_export_form.selected_user_ids.id_for_label }}">ID użytkowników</label>
+                        {{ db_export_form.selected_user_ids }}
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="{{ db_export_form.selected_task_ids.id_for_label }}">ID zadań</label>
+                        {{ db_export_form.selected_task_ids }}
+                    </div>
+                    <div class="col-12 d-grid">
+                        <button type="submit" class="btn btn-outline-primary">
+                            <i class="fas fa-file-export me-1"></i>Eksportuj
+                        </button>
+                    </div>
+                </form>
+                <small class="text-muted d-block mt-2">Zakres: pełna baza, tylko użytkownicy, albo użytkownicy + mentorzy + zadania.</small>
+            </div>
+            <div class="col-12 col-lg-6">
+                <form method="post" action="{% url 'accounts:hr_import_database' %}" enctype="multipart/form-data" class="row g-2 align-items-end">
+                    {% csrf_token %}
+                    <div class="col-md-8">
+                        <label class="form-label" for="{{ db_import_form.data_file.id_for_label }}">Plik importu</label>
+                        {{ db_import_form.data_file }}
+                    </div>
+                    <div class="col-md-4 d-grid">
+                        <button type="submit" class="btn btn-outline-success"
+                                onclick="return confirm('Import nadpisze/uzupełni dane na podstawie pliku. Kontynuować?');">
+                            <i class="fas fa-file-import me-1"></i>Importuj
+                        </button>
+                    </div>
+                    <div class="col-12">
+                        <div class="form-check">
+                            {{ db_import_form.overwrite_existing }}
+                            <label class="form-check-label" for="{{ db_import_form.overwrite_existing.id_for_label }}">
+                                Nadpisuj istniejące rekordy (bez opcji rekordy istniejące będą pomijane)
+                            </label>
+                        </div>
+                    </div>
+                </form>
+                <small class="text-muted d-block mt-2">Dozwolone rozszerzenia: .json, .xml, .yaml, .yml.</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card shadow-sm mb-3">
+    <div class="card-header bg-light">
         <h2 class="h6 mb-0"><i class="fas fa-filter me-2"></i>Filtry i sortowanie</h2>
     </div>
     <div class="card-body">

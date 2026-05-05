@@ -22,4 +22,6 @@ urlpatterns = [
     path("hr/email/<int:user_id>/", hr_views.hr_change_email, name="hr_change_email"),
     path("hr/change-own-password/", hr_views.hr_change_own_password, name="hr_change_own_password"),
     path("hr/reset-password/<int:user_id>/", hr_views.hr_reset_user_password, name="hr_reset_user_password"),
+    path("hr/db/export/", hr_views.hr_export_database, name="hr_export_database"),
+    path("hr/db/import/", hr_views.hr_import_database, name="hr_import_database"),
 ]
