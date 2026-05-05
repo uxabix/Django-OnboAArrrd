@@ -36,6 +36,16 @@ DEADLINE_FILTERS = {
     'completed': 'Ukończone / oddane',
 }
 
+TASK_LIST_SORT_OPTIONS = {
+    'deadline': 'Deadline rosnąco',
+    '-deadline': 'Deadline malejąco',
+    'title': 'Tytuł A-Z',
+    '-title': 'Tytuł Z-A',
+    'created_at': 'Data przypisania rosnąco',
+    '-created_at': 'Data przypisania malejąco',
+    'path': 'Ścieżka A-Z',
+}
+
 PATH_SORT_OPTIONS = {
     '-assigned_at': 'Najnowsze przypisanie',
     'assigned_at': 'Najstarsze przypisanie',
@@ -105,8 +115,14 @@ def user_tasks_list(request):
     enriched, stats, reminders, today = _build_user_tasks_with_state(request.user)
 
     filter_param = request.GET.get('filter', 'active')
+    path_filter = request.GET.get('path_filter', 'all')
+    sort_param = request.GET.get('sort', 'deadline')
+    group_by_path = request.GET.get('group_by_path', '1') == '1'
+
     if filter_param not in DEADLINE_FILTERS:
         filter_param = 'active'
+    if sort_param not in TASK_LIST_SORT_OPTIONS:
+        sort_param = 'deadline'
 
     if filter_param == 'active':
         filtered = [t for t in enriched if t['state'] in ('on_track', 'approaching')]
@@ -118,6 +134,59 @@ def user_tasks_list(request):
         filtered = [t for t in enriched if t['state'] in ('on_time', 'late')]
     else:
         filtered = enriched
+
+    # Opcje filtrowania po ścieżce + zadania standalone (bez ścieżki).
+    path_choices = {'all': 'Wszystkie ścieżki i standalone', 'no_path': 'Zadania bez ścieżki'}
+    for item in enriched:
+        path = item['user_task'].task_id.path if item['user_task'].task_id else None
+        if path:
+            path_choices[str(path.path_id)] = path.name
+
+    if path_filter == 'no_path':
+        filtered = [t for t in filtered if not t['user_task'].task_id.path]
+    elif path_filter != 'all':
+        filtered = [t for t in filtered if t['user_task'].task_id.path and str(t['user_task'].task_id.path.path_id) == path_filter]
+
+    if sort_param == 'title':
+        filtered.sort(key=lambda x: (x['user_task'].task_id.title or '').lower())
+    elif sort_param == '-title':
+        filtered.sort(key=lambda x: (x['user_task'].task_id.title or '').lower(), reverse=True)
+    elif sort_param == '-deadline':
+        filtered.sort(key=lambda x: x['user_task'].deadline, reverse=True)
+    elif sort_param == 'created_at':
+        filtered.sort(key=lambda x: x['user_task'].created_at)
+    elif sort_param == '-created_at':
+        filtered.sort(key=lambda x: x['user_task'].created_at, reverse=True)
+    elif sort_param == 'path':
+        filtered.sort(
+            key=lambda x: (
+                (x['user_task'].task_id.path.name if x['user_task'].task_id.path else 'ZZZ Standalone').lower(),
+                (x['user_task'].task_id.title or '').lower()
+            )
+        )
+    else:
+        filtered.sort(key=lambda x: x['user_task'].deadline)
+
+    grouped_tasks = []
+    if group_by_path:
+        group_map = defaultdict(list)
+        for item in filtered:
+            path = item['user_task'].task_id.path if item['user_task'].task_id else None
+            key = str(path.path_id) if path else 'no_path'
+            group_map[key].append(item)
+
+        for key, tasks in group_map.items():
+            if key == 'no_path':
+                label = 'Zadania bez ścieżki'
+            else:
+                label = path_choices.get(key, 'Ścieżka')
+            grouped_tasks.append({
+                'key': key,
+                'label': label,
+                'tasks': tasks,
+                'count': len(tasks),
+            })
+        grouped_tasks.sort(key=lambda g: (g['key'] == 'no_path', g['label'].lower()))
 
     page_number = request.GET.get('page', 1)
     paginator = Paginator(filtered, 15)
@@ -133,6 +202,12 @@ def user_tasks_list(request):
             'filter': filter_param,
             'filter_options': DEADLINE_FILTERS,
             'today': today,
+            'path_filter': path_filter,
+            'path_choices': path_choices,
+            'sort': sort_param,
+            'sort_options': TASK_LIST_SORT_OPTIONS,
+            'group_by_path': group_by_path,
+            'grouped_tasks': grouped_tasks,
         },
     )
 
@@ -372,6 +447,57 @@ def user_competency_paths_with_tasks(request):
             'path_sort_options': PATH_SORT_OPTIONS,
             'task_sort_options': TASK_SORT_OPTIONS,
         }
+    )
+
+
+@login_required
+def user_path_detail(request, user_path_id):
+    user_path = get_object_or_404(
+        User_paths.objects.select_related('path', 'assigned_by'),
+        user_path_id=user_path_id,
+        user=request.user,
+    )
+
+    path_tasks = list(
+        user_path.path.competency_path.all()
+        .select_related('task_type')
+        .order_by('path_order', 'title')
+    )
+    user_tasks = (
+        User_tasks.objects.filter(user_id=request.user, task_id__path=user_path.path)
+        .select_related('task_id')
+        .prefetch_related('statuses')
+    )
+    user_tasks_by_task_id = {
+        ut.task_id_id: ut
+        for ut in sorted(user_tasks, key=lambda item: item.created_at, reverse=True)
+    }
+
+    ordered_tasks = []
+    for idx, task in enumerate(path_tasks, start=1):
+        user_task = user_tasks_by_task_id.get(task.task_id)
+        current_status = user_task.current_status if user_task else Task_status.Status.DO_ZROBIENIA
+        deadline_state = user_task.deadline_state if user_task else 'on_track'
+        order_value = task.path_order if task.path_order is not None else idx
+        ordered_tasks.append({
+            'order': order_value,
+            'task': task,
+            'user_task': user_task,
+            'current_status': current_status,
+            'deadline_state': deadline_state,
+            'deadline': user_task.deadline if user_task else None,
+            'days_until_deadline': user_task.days_until_deadline if user_task else None,
+        })
+
+    ordered_tasks.sort(key=lambda x: (x['order'], (x['task'].title or '').lower()))
+
+    return render(
+        request,
+        'onboarding/user_path_detail.html',
+        {
+            'user_path': user_path,
+            'ordered_tasks': ordered_tasks,
+        },
     )
 
 @login_required

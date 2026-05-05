@@ -73,6 +73,15 @@
                                                 <a href="{% url 'chat:chat_inbox_user' item.user_path.assigned_by.id %}?ctx_type=path&ctx_id={{ item.user_path.user_path_id }}" class="btn btn-sm btn-outline-primary">
                                                     <i class="fas fa-comment-dots me-1"></i> Czat o tej ścieżce
                                                 </a>
+                                                <a href="{% url 'onboarding:user_path_detail' item.user_path.user_path_id %}" class="btn btn-sm btn-outline-secondary ms-2">
+                                                    <i class="fas fa-list-ol me-1"></i> Podgląd ścieżki
+                                                </a>
+                                            </div>
+                                        {% else %}
+                                            <div class="mb-3">
+                                                <a href="{% url 'onboarding:user_path_detail' item.user_path.user_path_id %}" class="btn btn-sm btn-outline-secondary">
+                                                    <i class="fas fa-list-ol me-1"></i> Podgląd ścieżki
+                                                </a>
                                             </div>
                                         {% endif %}
 

@@ -98,101 +98,145 @@
                     {% for value, label in filter_options.items %}
                         <li class="nav-item">
                             <a class="nav-link {% if filter == value %}active{% endif %}"
-                               href="?filter={{ value }}">{{ label }}</a>
+                               href="?filter={{ value }}&path_filter={{ path_filter }}&sort={{ sort }}&group_by_path={% if group_by_path %}1{% else %}0{% endif %}">{{ label }}</a>
                         </li>
                     {% endfor %}
                 </ul>
 
-                {% if page_obj.object_list %}
-                    <div class="table-responsive">
-                        <table class="table table-hover align-middle">
-                            <thead class="table-light">
-                                <tr>
-                                    <th>Zadanie</th>
-                                    <th>Opis</th>
-                                    <th>Termin (Deadline)</th>
-                                    <th>Stan</th>
-                                    <th class="text-end">Akcje</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for item in page_obj %}
-                                    <tr>
-                                        <td class="fw-bold text-primary">{{ item.user_task.task_id.title }}</td>
-                                        <td>{{ item.user_task.task_id.description|truncatewords:15|default:"Brak opisu" }}</td>
-                                        <td>
-                                            <div>
-                                                <i class="far fa-calendar-alt me-1 text-muted"></i>
-                                                {{ item.user_task.deadline|date:"d.m.Y" }}
-                                            </div>
-                                            {% if item.submission_date %}
-                                                <small class="text-muted">
-                                                    Oddano: {{ item.submission_date|date:"d.m.Y" }}
-                                                </small>
-                                            {% elif item.state == 'overdue' %}
-                                                <small class="text-danger">
-                                                    Spóźnienie: {{ item.days_until_deadline|stringformat:"d"|cut:"-" }} dni
-                                                </small>
-                                            {% elif item.state == 'approaching' %}
-                                                <small class="text-warning">
-                                                    {% if item.days_until_deadline == 0 %}
-                                                        Termin dzisiaj!
-                                                    {% elif item.days_until_deadline == 1 %}
-                                                        Termin jutro!
-                                                    {% else %}
-                                                        Zostało {{ item.days_until_deadline }} dni
-                                                    {% endif %}
-                                                </small>
-                                            {% endif %}
-                                        </td>
-                                        <td>
-                                            {% if item.state == 'on_time' %}
-                                                <span class="badge rounded-pill bg-success">
-                                                    <i class="fas fa-check me-1"></i>W terminie
-                                                </span>
-                                            {% elif item.state == 'late' %}
-                                                <span class="badge rounded-pill bg-warning text-dark">
-                                                    <i class="fas fa-exclamation me-1"></i>Po terminie
-                                                </span>
-                                            {% elif item.state == 'overdue' %}
-                                                <span class="badge rounded-pill bg-danger">
-                                                    <i class="fas fa-times me-1"></i>Przeterminowane
-                                                </span>
-                                            {% elif item.state == 'approaching' %}
-                                                <span class="badge rounded-pill bg-info text-dark">
-                                                    <i class="fas fa-clock me-1"></i>Zbliża się termin
-                                                </span>
-                                            {% else %}
-                                                <span class="badge rounded-pill bg-light text-dark border">
-                                                    <i class="fas fa-hourglass-half me-1"></i>W trakcie
-                                                </span>
-                                            {% endif %}
-                                            <div class="small text-muted mt-1">{{ item.current_status }}</div>
-                                        </td>
-                                        <td class="text-end">
-                                            <a href="{% url 'onboarding:user_task_detail' item.user_task.user_tasks_id %}"
-                                               class="btn btn-sm btn-outline-primary">
-                                                <i class="fas fa-eye"></i> Szczegóły
-                                            </a>
-                                            {% if item.user_task.assigned_by %}
-                                                <a href="{% url 'chat:chat_inbox_user' item.user_task.assigned_by.id %}?ctx_type=task&ctx_id={{ item.user_task.user_tasks_id }}"
-                                                   class="btn btn-sm btn-outline-info">
-                                                    <i class="fas fa-comment-dots"></i> Czat
-                                                </a>
-                                            {% endif %}
-                                        </td>
-                                    </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
+                <form method="get" class="row g-2 mb-3 align-items-end">
+                    <input type="hidden" name="filter" value="{{ filter }}">
+                    <div class="col-md-4">
+                        <label class="form-label" for="path_filter">Filtr ścieżki</label>
+                        <select class="form-select" id="path_filter" name="path_filter">
+                            {% for value, label in path_choices.items %}
+                                <option value="{{ value }}" {% if path_filter == value %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
                     </div>
+                    <div class="col-md-4">
+                        <label class="form-label" for="sort">Sortowanie</label>
+                        <select class="form-select" id="sort" name="sort">
+                            {% for value, label in sort_options.items %}
+                                <option value="{{ value }}" {% if sort == value %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="form-check form-switch mt-4">
+                            <input class="form-check-input" type="checkbox" role="switch" id="group_by_path" name="group_by_path" value="1" {% if group_by_path %}checked{% endif %}>
+                            <label class="form-check-label" for="group_by_path">Grupuj po ścieżkach</label>
+                        </div>
+                    </div>
+                    <div class="col-md-1 text-end">
+                        <button type="submit" class="btn btn-outline-primary">OK</button>
+                    </div>
+                </form>
 
-                    {% if page_obj.has_other_pages %}
+                {% if page_obj.object_list %}
+                    {% if group_by_path %}
+                        <div class="accordion" id="taskGroups">
+                            {% for group in grouped_tasks %}
+                                <div class="accordion-item mb-3 shadow-sm">
+                                    <h2 class="accordion-header" id="heading{{ forloop.counter }}">
+                                        <button class="accordion-button {% if not forloop.first %}collapsed{% endif %}" type="button" data-bs-toggle="collapse" data-bs-target="#collapse{{ forloop.counter }}">
+                                            <strong>{{ group.label }}</strong>&nbsp;<span class="text-muted">({{ group.count }})</span>
+                                        </button>
+                                    </h2>
+                                    <div id="collapse{{ forloop.counter }}" class="accordion-collapse collapse {% if forloop.first %}show{% endif %}" data-bs-parent="#taskGroups">
+                                        <div class="accordion-body">
+                                            <div class="table-responsive">
+                                                <table class="table table-hover align-middle mb-0">
+                                                    <thead class="table-light">
+                                                        <tr>
+                                                            <th>Zadanie</th>
+                                                            <th>Opis</th>
+                                                            <th>Termin (Deadline)</th>
+                                                            <th>Stan</th>
+                                                            <th class="text-end">Akcje</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {% for item in group.tasks %}
+                                                            <tr>
+                                                                <td class="fw-bold text-primary">{{ item.user_task.task_id.title }}</td>
+                                                                <td>{{ item.user_task.task_id.description|truncatewords:15|default:"Brak opisu" }}</td>
+                                                                <td>
+                                                                    <div><i class="far fa-calendar-alt me-1 text-muted"></i>{{ item.user_task.deadline|date:"d.m.Y" }}</div>
+                                                                </td>
+                                                                <td>
+                                                                    {% if item.state == 'on_time' %}
+                                                                        <span class="badge rounded-pill bg-success">W terminie</span>
+                                                                    {% elif item.state == 'late' %}
+                                                                        <span class="badge rounded-pill bg-warning text-dark">Po terminie</span>
+                                                                    {% elif item.state == 'overdue' %}
+                                                                        <span class="badge rounded-pill bg-danger">Przeterminowane</span>
+                                                                    {% elif item.state == 'approaching' %}
+                                                                        <span class="badge rounded-pill bg-info text-dark">Zbliża się termin</span>
+                                                                    {% else %}
+                                                                        <span class="badge rounded-pill bg-light text-dark border">W trakcie</span>
+                                                                    {% endif %}
+                                                                    <div class="small text-muted mt-1">{{ item.current_status }}</div>
+                                                                </td>
+                                                                <td class="text-end">
+                                                                    <a href="{% url 'onboarding:user_task_detail' item.user_task.user_tasks_id %}" class="btn btn-sm btn-outline-primary">
+                                                                        <i class="fas fa-eye"></i> Szczegóły
+                                                                    </a>
+                                                                </td>
+                                                            </tr>
+                                                        {% endfor %}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Zadanie</th>
+                                        <th>Ścieżka</th>
+                                        <th>Opis</th>
+                                        <th>Termin (Deadline)</th>
+                                        <th>Stan</th>
+                                        <th class="text-end">Akcje</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for item in page_obj %}
+                                        <tr>
+                                            <td class="fw-bold text-primary">{{ item.user_task.task_id.title }}</td>
+                                            <td>
+                                                {% if item.user_task.task_id.path %}
+                                                    {{ item.user_task.task_id.path.name }}
+                                                {% else %}
+                                                    <span class="text-muted">Standalone</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>{{ item.user_task.task_id.description|truncatewords:15|default:"Brak opisu" }}</td>
+                                            <td><i class="far fa-calendar-alt me-1 text-muted"></i>{{ item.user_task.deadline|date:"d.m.Y" }}</td>
+                                            <td><div class="small text-muted">{{ item.current_status }}</div></td>
+                                            <td class="text-end">
+                                                <a href="{% url 'onboarding:user_task_detail' item.user_task.user_tasks_id %}" class="btn btn-sm btn-outline-primary">
+                                                    <i class="fas fa-eye"></i> Szczegóły
+                                                </a>
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% endif %}
+
+                    {% if page_obj.has_other_pages and not group_by_path %}
                         <nav>
                             <ul class="pagination justify-content-center">
                                 {% if page_obj.has_previous %}
                                     <li class="page-item">
-                                        <a class="page-link" href="?filter={{ filter }}&page={{ page_obj.previous_page_number }}">«</a>
+                                        <a class="page-link" href="?filter={{ filter }}&path_filter={{ path_filter }}&sort={{ sort }}&group_by_path=0&page={{ page_obj.previous_page_number }}">«</a>
                                     </li>
                                 {% endif %}
                                 <li class="page-item disabled">
@@ -200,7 +244,7 @@
                                 </li>
                                 {% if page_obj.has_next %}
                                     <li class="page-item">
-                                        <a class="page-link" href="?filter={{ filter }}&page={{ page_obj.next_page_number }}">»</a>
+                                        <a class="page-link" href="?filter={{ filter }}&path_filter={{ path_filter }}&sort={{ sort }}&group_by_path=0&page={{ page_obj.next_page_number }}">»</a>
                                     </li>
                                 {% endif %}
                             </ul>

@@ -13,6 +13,7 @@ from .views import (
     mentor_edit_task,
     mentor_task_management,
     user_competency_paths_with_tasks,
+    user_path_detail,
     user_submit_task,
     user_task_detail,
     user_tasks_calendar,
@@ -30,6 +31,7 @@ urlpatterns = [
         name='user_tasks_calendar_month',
     ),
     path('onboarding/paths/', user_competency_paths_with_tasks, name='user_competency_paths_with_tasks'),
+    path('onboarding/paths/<int:user_path_id>/', user_path_detail, name='user_path_detail'),
     path("task/<int:user_task_id>/", user_task_detail, name="user_task_detail"),
     path('task/<int:user_task_id>/submit/', user_submit_task, name='user_submit_task'),
     # Mentor routes
