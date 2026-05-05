@@ -546,6 +546,7 @@ def mentor_task_management(request, student_id=None):
     task_sort = request.GET.get('task_sort', '-created_at')
     task_status_filter = request.GET.get('task_status', '')
     deadline_filter = request.GET.get('deadline_state', '')
+    group_by_path = request.GET.get('group_by_path', '0') == '1'
 
     # Pobranie zadań wybranego studenta
     student_tasks = User_tasks.objects.filter(
@@ -601,6 +602,27 @@ def mentor_task_management(request, student_id=None):
     tasks_paginator = Paginator(tasks_with_status, 10)
     tasks_page_obj = tasks_paginator.get_page(tasks_page_number)
 
+    tasks_grouped_by_path = []
+    if group_by_path:
+        grouped_map = defaultdict(list)
+        for item in tasks_with_status:
+            path = item['user_task'].task_id.path if item['user_task'].task_id else None
+            key = str(path.path_id) if path else 'no_path'
+            grouped_map[key].append(item)
+
+        for key, grouped_tasks in grouped_map.items():
+            if key == 'no_path':
+                label = 'Zadania bez ścieżki'
+            else:
+                label = grouped_tasks[0]['user_task'].task_id.path.name
+            tasks_grouped_by_path.append({
+                'key': key,
+                'label': label,
+                'tasks': grouped_tasks,
+                'count': len(grouped_tasks),
+            })
+        tasks_grouped_by_path.sort(key=lambda x: (x['key'] == 'no_path', x['label'].lower()))
+
     # Parametry wyszukiwania i filtrowania dla ścieżek
     path_search = request.GET.get('path_search', '').strip()
     path_sort = request.GET.get('path_sort', '-assigned_at')
@@ -652,6 +674,8 @@ def mentor_task_management(request, student_id=None):
         'deadline_filter': deadline_filter,
         'deadline_filter_options': deadline_filter_options,
         'deadline_summary': deadline_summary,
+        'group_by_path': group_by_path,
+        'tasks_grouped_by_path': tasks_grouped_by_path,
         'path_search': path_search,
         'path_sort': path_sort,
         'task_statuses': Task_status.Status.choices,
