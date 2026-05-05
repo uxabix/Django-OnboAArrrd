@@ -321,7 +321,9 @@ def chat_inbox(request, user_id=None):
 
     close_secondary_url = ""
     if selected_user is not None:
-        primary_only_params = {**list_query_params}
+        primary_only_params = {
+            k: v for k, v in list_query_params.items() if k not in ("s_user_id", "s_ctx_type", "s_ctx_id")
+        }
         if selected_query.get("ctx_type") and selected_query.get("ctx_id"):
             primary_only_params["ctx_type"] = selected_query["ctx_type"]
             primary_only_params["ctx_id"] = selected_query["ctx_id"]
