@@ -2,6 +2,7 @@ from django.urls import path
 
 from .views import (
     mentor_assign_path,
+    mentor_path_tasks_json,
     mentor_assign_task,
     mentor_change_user_task_status,
     mentor_create_path,
@@ -42,6 +43,7 @@ urlpatterns = [
     path('mentor/change-user-task-status/<int:user_task_id>/', mentor_change_user_task_status,
          name='mentor_change_user_task_status'),
     path('mentor/assign-path/<int:student_id>/', mentor_assign_path, name='mentor_assign_path'),
+    path('mentor/path-tasks/<int:path_id>/', mentor_path_tasks_json, name='mentor_path_tasks_json'),
     path('mentor/delete-user-path/<int:user_path_id>/', mentor_delete_user_path, name='mentor_delete_user_path'),
     path('mentor/create-path/', mentor_create_path, name='mentor_create_path'),
 ]

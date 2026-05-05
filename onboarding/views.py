@@ -1,4 +1,7 @@
 import calendar
+import json
+from datetime import timedelta
+from django.utils.dateparse import parse_date
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -538,20 +541,97 @@ def mentor_assign_path(request, student_id):
     path_search = request.GET.get('path_search', '')
 
     if request.method == 'POST':
-        form = UserPathForm(request.POST, path_search=path_search)
+        form = UserPathForm(request.POST)
+        assignment_data_raw = request.POST.get('assignment_data', '[]')
         if form.is_valid():
-            user_path = form.save(commit=False)
-            user_path.user = student
-            user_path.assigned_by = mentor
-            user_path.save()
-            return redirect('onboarding:mentor_task_management', student_id=student.id)
+            try:
+                assignment_data = json.loads(assignment_data_raw)
+            except json.JSONDecodeError:
+                form.add_error(None, 'Nieprawidłowe dane zadań do przypisania.')
+                assignment_data = []
+
+            path = form.cleaned_data['path']
+            path_task_ids = set(Tasks.objects.filter(path=path).values_list('task_id', flat=True))
+
+            validated_assignments = []
+            for item in assignment_data:
+                try:
+                    task_id = int(item.get('task_id'))
+                except (TypeError, ValueError):
+                    continue
+                deadline_raw = item.get('deadline')
+                order = item.get('order')
+                deadline = parse_date(deadline_raw) if deadline_raw else None
+
+                if task_id not in path_task_ids:
+                    continue
+                if deadline is None:
+                    form.add_error(None, 'Każde przypisywane zadanie musi mieć deadline.')
+                    break
+                validated_assignments.append({
+                    'task_id': task_id,
+                    'deadline': deadline,
+                    'order': order if isinstance(order, int) else 0,
+                })
+
+            if not form.non_field_errors():
+                with transaction.atomic():
+                    user_path = form.save(commit=False)
+                    user_path.user = student
+                    user_path.assigned_by = mentor
+                    user_path.save()
+
+                    for assignment in sorted(validated_assignments, key=lambda x: x['order']):
+                        task = Tasks.objects.get(task_id=assignment['task_id'])
+                        user_task = User_tasks.objects.create(
+                            user_id=student,
+                            task_id=task,
+                            assigned_by=mentor,
+                            deadline=assignment['deadline'],
+                        )
+                        Task_status.objects.create(
+                            user_task=user_task,
+                            new_status=Task_status.Status.DO_ZROBIENIA
+                        )
+
+                return redirect('onboarding:mentor_task_management', student_id=student.id)
     else:
         form = UserPathForm(path_search=path_search)
+
+    default_deadline = (timezone.now().date() + timedelta(days=7)).isoformat()
 
     return render(request, 'onboarding/mentor_assign_path.html', {
         'form': form,
         'student': student,
         'path_search': path_search,
+        'default_deadline': default_deadline,
+    })
+
+
+@login_required
+def mentor_path_tasks_json(request, path_id):
+    mentor = request.user
+    if not mentor.is_mentor:
+        return JsonResponse({'ok': False, 'error': 'Brak uprawnień.'}, status=403)
+
+    tasks = (
+        Tasks.objects
+        .filter(path_id=path_id)
+        .select_related('task_type')
+        .order_by('path_order', 'title')
+    )
+    return JsonResponse({
+        'ok': True,
+        'tasks': [
+            {
+                'id': task.task_id,
+                'title': task.title or '(bez tytułu)',
+                'description': task.description or '',
+                'task_type': task.task_type.task_type if task.task_type else 'Brak typu',
+                'path_order': task.path_order or 0,
+            }
+            for task in tasks
+        ]
     })
 
 
