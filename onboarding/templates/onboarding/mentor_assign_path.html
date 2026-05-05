@@ -4,7 +4,7 @@
 
 {% block content %}
 <div class="row justify-content-center">
-    <div class="col-md-8">
+    <div class="col-xl-11">
         <div class="card shadow-sm">
             <div class="card-body p-4">
                 <nav aria-label="breadcrumb">
@@ -40,20 +40,68 @@
                     </a>
                 </div>
 
-                <form method="post" class="needs-validation">
+                <form method="post" class="needs-validation" id="assignPathForm">
                     {% csrf_token %}
-                    {% for field in form %}
-                        <div class="mb-4">
-                            <label for="{{ field.id_for_label }}" class="form-label fw-bold">{{ field.label }}</label>
-                            {{ field }}
-                            {% if field.help_text %}
-                                <div class="form-text small">{{ field.help_text }}</div>
-                            {% endif %}
-                            {% for error in field.errors %}
-                                <div class="text-danger small">{{ error }}</div>
+                    {% if form.non_field_errors %}
+                        <div class="alert alert-danger py-2 small">
+                            {% for error in form.non_field_errors %}
+                                <div>{{ error }}</div>
                             {% endfor %}
                         </div>
-                    {% endfor %}
+                    {% endif %}
+
+                    <div class="row g-4">
+                        <div class="col-lg-4">
+                            {% for field in form %}
+                                <div class="mb-4">
+                                    <label for="{{ field.id_for_label }}" class="form-label fw-bold">{{ field.label }}</label>
+                                    {{ field }}
+                                    {% if field.help_text %}
+                                        <div class="form-text small">{{ field.help_text }}</div>
+                                    {% endif %}
+                                    {% for error in field.errors %}
+                                        <div class="text-danger small">{{ error }}</div>
+                                    {% endfor %}
+                                </div>
+                            {% endfor %}
+
+                            <div class="small text-muted">
+                                <i class="fas fa-info-circle me-1"></i>
+                                Przeciągaj zadania, aby ustalić kolejność. Każde przypisane zadanie wymaga deadline.
+                            </div>
+                        </div>
+
+                        <div class="col-lg-8">
+                            <div class="row g-3 mb-3">
+                                <div class="col-md-6">
+                                    <div class="input-group">
+                                        <span class="input-group-text"><i class="fas fa-search"></i></span>
+                                        <input type="text" id="taskSearch" class="form-control" placeholder="Szukaj zadań ścieżki...">
+                                    </div>
+                                </div>
+                                <div class="col-md-6 text-md-end">
+                                    <button type="button" id="selectAllBtn" class="btn btn-outline-primary btn-sm">
+                                        <i class="fas fa-plus-square me-1"></i> Dodaj wszystkie zadania
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <h6 class="mb-2">Zadania dostępne w ścieżce</h6>
+                                    <div id="availableTasks" class="task-column border rounded p-2 bg-light"></div>
+                                </div>
+                                <div class="col-md-6">
+                                    <h6 class="mb-2">Zadania do przypisania</h6>
+                                    <div id="selectedTasks" class="task-column border rounded p-2"></div>
+                                    <input type="hidden" name="assignment_data" id="assignmentDataInput">
+                                    <div id="deadlineError" class="text-danger small mt-2 d-none">
+                                        Ustaw deadline dla wszystkich przypisywanych zadań.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
 
                     <div class="d-flex justify-content-between align-items-center mt-5">
                         <a href="{% url 'onboarding:mentor_task_management' student.id %}" class="text-decoration-none text-muted">
@@ -72,7 +120,7 @@
 
 {% block extra_css %}
 <style>
-    select {
+    select, input[type="text"], input[type="date"] {
         display: block;
         width: 100%;
         padding: 0.375rem 0.75rem;
@@ -87,10 +135,183 @@
         border-radius: 0.375rem;
         transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
     }
-    select:focus {
+    select:focus, input:focus {
         border-color: #86b7fe;
         outline: 0;
         box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
     }
+    .task-column {
+        min-height: 360px;
+        max-height: 520px;
+        overflow-y: auto;
+    }
+    .task-card {
+        cursor: grab;
+    }
+    .task-card.dragging {
+        opacity: 0.6;
+    }
+    .task-column.drag-over {
+        border-color: #0d6efd !important;
+        background: #eef5ff;
+    }
 </style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    (() => {
+        const pathSelect = document.getElementById('id_path');
+        const availableCol = document.getElementById('availableTasks');
+        const selectedCol = document.getElementById('selectedTasks');
+        const assignmentInput = document.getElementById('assignmentDataInput');
+        const taskSearch = document.getElementById('taskSearch');
+        const assignPathForm = document.getElementById('assignPathForm');
+        const selectAllBtn = document.getElementById('selectAllBtn');
+        const deadlineError = document.getElementById('deadlineError');
+        const defaultDeadline = "{{ default_deadline }}";
+        const tasksUrlTemplate = "{% url 'onboarding:mentor_path_tasks_json' 0 %}";
+
+        let draggedCard = null;
+
+        function attachDragHandlers(card) {
+            card.addEventListener('dragstart', () => {
+                draggedCard = card;
+                card.classList.add('dragging');
+            });
+            card.addEventListener('dragend', () => {
+                card.classList.remove('dragging');
+                draggedCard = null;
+                syncAssignmentData();
+            });
+        }
+
+        function handleColumnDrag(column) {
+            column.addEventListener('dragover', (event) => {
+                event.preventDefault();
+                if (!draggedCard) {
+                    return;
+                }
+                const afterElement = getDragAfterElement(column, event.clientY);
+                if (afterElement == null) {
+                    column.appendChild(draggedCard);
+                } else {
+                    column.insertBefore(draggedCard, afterElement);
+                }
+            });
+            column.addEventListener('dragenter', (event) => {
+                event.preventDefault();
+                column.classList.add('drag-over');
+            });
+            column.addEventListener('dragleave', () => column.classList.remove('drag-over'));
+            column.addEventListener('drop', () => {
+                column.classList.remove('drag-over');
+                syncAssignmentData();
+            });
+        }
+
+        function getDragAfterElement(container, y) {
+            const draggableElements = [...container.querySelectorAll('.task-card:not(.dragging)')];
+            return draggableElements.reduce((closest, child) => {
+                const box = child.getBoundingClientRect();
+                const offset = y - box.top - box.height / 2;
+                if (offset < 0 && offset > closest.offset) {
+                    return { offset, element: child };
+                }
+                return closest;
+            }, { offset: Number.NEGATIVE_INFINITY }).element;
+        }
+
+        function createCard(task) {
+            const card = document.createElement('div');
+            card.className = 'task-card card mb-2';
+            card.draggable = true;
+            card.dataset.taskId = String(task.id);
+            card.dataset.search = `${(task.title || '').toLowerCase()} ${(task.description || '').toLowerCase()}`;
+            card.innerHTML = `
+                <div class="card-body py-2 px-3">
+                    <div class="d-flex justify-content-between">
+                        <div class="fw-semibold">${task.title}</div>
+                        <small class="text-muted">#${task.id}</small>
+                    </div>
+                    <div class="small text-muted mb-2">${task.task_type}</div>
+                    <label class="small text-muted mb-1">Deadline</label>
+                    <input type="date" class="form-control form-control-sm deadline-input" value="${defaultDeadline}">
+                </div>
+            `;
+            attachDragHandlers(card);
+            card.querySelector('.deadline-input').addEventListener('change', syncAssignmentData);
+            return card;
+        }
+
+        async function loadTasksForPath(pathId) {
+            availableCol.innerHTML = '';
+            selectedCol.innerHTML = '';
+            assignmentInput.value = '[]';
+            deadlineError.classList.add('d-none');
+
+            if (!pathId) {
+                return;
+            }
+            const response = await fetch(tasksUrlTemplate.replace('/0/', `/${pathId}/`));
+            const data = await response.json();
+            if (!response.ok || !data.ok) {
+                return;
+            }
+            data.tasks.forEach((task) => {
+                selectedCol.appendChild(createCard(task));
+            });
+            syncAssignmentData();
+        }
+
+        function applySearch() {
+            const term = taskSearch.value.trim().toLowerCase();
+            availableCol.querySelectorAll('.task-card').forEach((card) => {
+                card.style.display = !term || card.dataset.search.includes(term) ? '' : 'none';
+            });
+            selectedCol.querySelectorAll('.task-card').forEach((card) => {
+                card.style.display = !term || card.dataset.search.includes(term) ? '' : 'none';
+            });
+        }
+
+        function syncAssignmentData() {
+            const payload = [...selectedCol.querySelectorAll('.task-card')].map((card, index) => ({
+                task_id: Number(card.dataset.taskId),
+                deadline: card.querySelector('.deadline-input').value,
+                order: index + 1
+            }));
+            assignmentInput.value = JSON.stringify(payload);
+        }
+
+        function validateDeadlines() {
+            const invalid = [...selectedCol.querySelectorAll('.deadline-input')].some((input) => !input.value);
+            if (invalid) {
+                deadlineError.classList.remove('d-none');
+                return false;
+            }
+            deadlineError.classList.add('d-none');
+            return true;
+        }
+
+        selectAllBtn.addEventListener('click', () => {
+            [...availableCol.querySelectorAll('.task-card')].forEach((card) => selectedCol.appendChild(card));
+            syncAssignmentData();
+        });
+
+        taskSearch.addEventListener('input', applySearch);
+        pathSelect.addEventListener('change', () => loadTasksForPath(pathSelect.value));
+        assignPathForm.addEventListener('submit', (event) => {
+            syncAssignmentData();
+            if (!validateDeadlines()) {
+                event.preventDefault();
+            }
+        });
+
+        handleColumnDrag(availableCol);
+        handleColumnDrag(selectedCol);
+        if (pathSelect.value) {
+            loadTasksForPath(pathSelect.value);
+        }
+    })();
+</script>
 {% endblock %}

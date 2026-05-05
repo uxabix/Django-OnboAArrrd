@@ -1,12 +1,18 @@
 import secrets
+from io import StringIO
 from urllib.parse import urlencode
 
 from django.contrib import messages
 from django.contrib.auth import get_user_model, update_session_auth_hash
 from django.contrib.auth.forms import PasswordChangeForm
+from django.apps import apps
+from django.core import serializers
+from django.core.management import call_command
+from django.core.management.base import CommandError
 from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import Q
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils.dateparse import parse_date
@@ -16,7 +22,10 @@ from .decorators import hr_required, user_is_administrator_role
 from .forms import (
     HrAddEmployeeForm,
     HrChangeEmailForm,
+    HrChangeMentorForm,
     HrChangeRoleForm,
+    HrDbExportForm,
+    HrDbImportForm,
     apply_bootstrap_control_widgets,
     mentor_student_roles_queryset,
 )
@@ -41,6 +50,11 @@ _HR_SORT_FIELDS = {
 }
 
 _HR_PAGE_SIZE = 15
+_DB_SERIALIZER_EXTENSIONS = {
+    "json": "json",
+    "xml": "xml",
+    "yaml": "yaml",
+}
 
 
 def _generate_hr_temporary_password():
@@ -77,6 +91,16 @@ def _hr_can_manage_actor(actor, target):
     if rn in ("hr", "admin", "administrator"):
         return False
     return True
+
+
+def _hr_can_change_role_for_target(actor, target):
+    """
+    Role change permission.
+    Superuser / Administrator can also change own role from HR panel.
+    """
+    if actor.pk == target.pk:
+        return actor.is_superuser or user_is_administrator_role(actor)
+    return _hr_can_manage_actor(actor, target)
 
 
 def _redirect_hr_dashboard(request):
@@ -174,9 +198,18 @@ def hr_dashboard(request):
     manageable_ids = {
         u.pk for u in page_obj.object_list if _hr_can_manage_actor(request.user, u)
     }
+    role_manageable_ids = {
+        u.pk for u in page_obj.object_list if _hr_can_change_role_for_target(request.user, u)
+    }
     assignable_roles = list(mentor_student_roles_queryset())
     all_roles = list(Roles.objects.all().order_by("name"))
+    mentor_candidates = list(
+        CustomUserModel.objects.filter(role__name__iexact="Mentor")
+        .order_by("first_name", "last_name", "email")
+    )
     querystring_no_page = _querystring_except_page(request.GET)
+    db_export_form = HrDbExportForm()
+    db_import_form = HrDbImportForm()
 
     return render(
         request,
@@ -186,7 +219,9 @@ def hr_dashboard(request):
             "employees": page_obj.object_list,
             "assignable_roles": assignable_roles,
             "all_roles": all_roles,
+            "mentor_candidates": mentor_candidates,
             "manageable_ids": manageable_ids,
+            "role_manageable_ids": role_manageable_ids,
             "preservation": preservation,
             "filter_q": p["q"],
             "filter_role_id": p["role_id"],
@@ -194,8 +229,176 @@ def hr_dashboard(request):
             "filter_created_to": p["created_to"],
             "filter_sort": p["sort"],
             "querystring_no_page": querystring_no_page,
+            "db_export_form": db_export_form,
+            "db_import_form": db_import_form,
         },
     )
+
+
+@hr_required
+@require_http_methods(["POST"])
+def hr_export_database(request):
+    """Export full DB data using Django serializers."""
+    form = HrDbExportForm(request.POST)
+    if not form.is_valid():
+        messages.error(request, "Nieprawidłowy format eksportu.")
+        return redirect("accounts:hr_dashboard")
+
+    export_format = form.cleaned_data["export_format"]
+    data_scope = form.cleaned_data["data_scope"]
+    only_selected = form.cleaned_data["only_selected"]
+    user_ids = form.cleaned_data.get("selected_user_ids_list", [])
+    task_ids = form.cleaned_data.get("selected_task_ids_list", [])
+
+    try:
+        if data_scope == "full_db":
+            stream = StringIO()
+            call_command("dumpdata", format=export_format, indent=2, stdout=stream)
+            payload = stream.getvalue()
+        elif data_scope == "users_only":
+            payload = _export_users_only(export_format, only_selected, user_ids)
+        else:
+            payload = _export_users_mentors_tasks(export_format, only_selected, user_ids, task_ids)
+    except (CommandError, ValueError) as exc:
+        messages.error(request, f"Eksport nie powiódł się: {exc}")
+        return redirect("accounts:hr_dashboard")
+
+    filename = form.build_filename()
+    extension = _DB_SERIALIZER_EXTENSIONS[export_format]
+    content_type = "application/json" if extension == "json" else "application/octet-stream"
+    response = HttpResponse(payload, content_type=content_type)
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response
+
+
+@hr_required
+@require_http_methods(["POST"])
+def hr_import_database(request):
+    """Import DB data from supported dump formats."""
+    form = HrDbImportForm(request.POST, request.FILES)
+    if not form.is_valid():
+        messages.error(request, "Nieprawidłowy plik importu.")
+        return redirect("accounts:hr_dashboard")
+
+    uploaded = form.cleaned_data["data_file"]
+    overwrite_existing = form.cleaned_data["overwrite_existing"]
+    filename = uploaded.name
+    suffix = ""
+    if "." in filename:
+        suffix = "." + filename.rsplit(".", 1)[1].lower()
+
+    try:
+        file_bytes = b"".join(uploaded.chunks())
+        payload = file_bytes.decode("utf-8")
+    except UnicodeDecodeError:
+        messages.error(request, "Plik importu musi być w kodowaniu UTF-8.")
+        return redirect("accounts:hr_dashboard")
+
+    fmt = "yaml" if suffix in (".yaml", ".yml") else suffix.lstrip(".")
+    if fmt not in ("json", "xml", "yaml"):
+        messages.error(request, "Nieobsługiwany format pliku importu.")
+        return redirect("accounts:hr_dashboard")
+
+    try:
+        created, updated, skipped = _import_payload(payload, fmt, overwrite_existing)
+    except Exception as exc:  # noqa: BLE001
+        messages.error(request, f"Import nie powiódł się: {exc}")
+        return redirect("accounts:hr_dashboard")
+
+    mode_msg = "nadpisano istniejące rekordy" if overwrite_existing else "istniejące rekordy pominięto"
+    messages.success(
+        request,
+        f"Import zakończony: dodano {created}, zaktualizowano {updated}, pominięto {skipped} ({mode_msg}).",
+    )
+    return redirect("accounts:hr_dashboard")
+
+
+def _serialize_objects(export_format, objects):
+    return serializers.serialize(export_format, objects, indent=2)
+
+
+def _export_users_only(export_format, only_selected, user_ids):
+    users_qs = CustomUserModel.objects.select_related("role", "mentor").all()
+    if only_selected:
+        users_qs = users_qs.filter(pk__in=user_ids)
+        mentor_ids = set(users_qs.exclude(mentor_id__isnull=True).values_list("mentor_id", flat=True))
+        if mentor_ids:
+            users_qs = CustomUserModel.objects.filter(Q(pk__in=user_ids) | Q(pk__in=mentor_ids))
+    role_ids = set(users_qs.exclude(role_id__isnull=True).values_list("role_id", flat=True))
+    roles_qs = Roles.objects.filter(pk__in=role_ids) if role_ids else Roles.objects.none()
+    objects = list(roles_qs.order_by("pk")) + list(users_qs.order_by("pk"))
+    return _serialize_objects(export_format, objects)
+
+
+def _export_users_mentors_tasks(export_format, only_selected, user_ids, task_ids):
+    TasksModel = _get_model("onboarding.Tasks")
+    UserTasksModel = _get_model("onboarding.User_tasks")
+    TaskStatusModel = _get_model("onboarding.Task_status")
+    TaskTypesModel = _get_model("onboarding.Task_types")
+    PathsModel = _get_model("onboarding.Competency_paths")
+
+    if only_selected:
+        tasks_qs = TasksModel.objects.filter(pk__in=task_ids) if task_ids else TasksModel.objects.none()
+        user_tasks_qs = UserTasksModel.objects.filter(
+            Q(user_id_id__in=user_ids) | Q(assigned_by_id__in=user_ids) | Q(task_id_id__in=task_ids)
+        )
+        if task_ids:
+            user_tasks_qs = user_tasks_qs | UserTasksModel.objects.filter(task_id_id__in=task_ids)
+        user_tasks_qs = user_tasks_qs.distinct()
+        related_user_ids = set(user_ids)
+        related_user_ids.update(user_tasks_qs.exclude(user_id_id__isnull=True).values_list("user_id_id", flat=True))
+        related_user_ids.update(user_tasks_qs.exclude(assigned_by_id__isnull=True).values_list("assigned_by_id", flat=True))
+        related_user_ids.update(CustomUserModel.objects.filter(pk__in=related_user_ids).exclude(mentor_id__isnull=True).values_list("mentor_id", flat=True))
+        users_qs = CustomUserModel.objects.filter(pk__in=related_user_ids)
+    else:
+        tasks_qs = TasksModel.objects.all()
+        user_tasks_qs = UserTasksModel.objects.all()
+        users_qs = CustomUserModel.objects.all()
+
+    statuses_qs = TaskStatusModel.objects.filter(user_task_id__in=user_tasks_qs.values("pk"))
+    task_type_ids = set(tasks_qs.exclude(task_type_id__isnull=True).values_list("task_type_id", flat=True))
+    path_ids = set(tasks_qs.exclude(path_id__isnull=True).values_list("path_id", flat=True))
+    task_types_qs = TaskTypesModel.objects.filter(pk__in=task_type_ids)
+    paths_qs = PathsModel.objects.filter(pk__in=path_ids)
+    role_ids = set(users_qs.exclude(role_id__isnull=True).values_list("role_id", flat=True))
+    roles_qs = Roles.objects.filter(pk__in=role_ids)
+
+    objects = (
+        list(roles_qs.order_by("pk"))
+        + list(users_qs.order_by("pk"))
+        + list(paths_qs.order_by("pk"))
+        + list(task_types_qs.order_by("pk"))
+        + list(tasks_qs.order_by("pk"))
+        + list(user_tasks_qs.order_by("pk"))
+        + list(statuses_qs.order_by("pk"))
+    )
+    return _serialize_objects(export_format, objects)
+
+
+def _get_model(model_label):
+    app_label, model_name = model_label.split(".")
+    return apps.get_model(app_label, model_name)
+
+
+def _import_payload(payload, fmt, overwrite_existing):
+    created = 0
+    updated = 0
+    skipped = 0
+    with transaction.atomic():
+        for deserialized in serializers.deserialize(fmt, payload):
+            instance = deserialized.object
+            model = instance.__class__
+            instance_pk = instance.pk
+            exists = bool(instance_pk) and model.objects.filter(pk=instance_pk).exists()
+            if exists and not overwrite_existing:
+                skipped += 1
+                continue
+            deserialized.save()
+            if exists:
+                updated += 1
+            else:
+                created += 1
+    return created, updated, skipped
 
 
 @hr_required
@@ -271,7 +474,7 @@ def hr_reactivate_employee(request, user_id):
 def hr_change_role(request, user_id):
     """Set role to Mentor or Student only; demoting a mentor clears mentees."""
     target = get_object_or_404(CustomUserModel, pk=user_id)
-    if not _hr_can_manage_actor(request.user, target):
+    if not _hr_can_change_role_for_target(request.user, target):
         messages.error(request, "Nie możesz zmienić roli tego użytkownika.")
         return _redirect_hr_dashboard(request)
     form = HrChangeRoleForm(request.POST)
@@ -317,6 +520,36 @@ def hr_change_email(request, user_id):
         request,
         f"Zmieniono adres e-mail z „{old_email}” na „{target.email}”.",
     )
+    return _redirect_hr_dashboard(request)
+
+
+@hr_required
+@require_http_methods(["POST"])
+def hr_change_mentor(request, user_id):
+    """Update student's assigned mentor from HR panel."""
+    target = get_object_or_404(CustomUserModel, pk=user_id)
+    if not _hr_can_manage_actor(request.user, target):
+        messages.error(request, "Nie możesz zmienić mentora tego użytkownika.")
+        return _redirect_hr_dashboard(request)
+
+    form = HrChangeMentorForm(request.POST, edited_user=target)
+    if not form.is_valid():
+        err_msg = "Nieprawidłowe dane formularza mentora."
+        non_field = form.non_field_errors()
+        if non_field:
+            err_msg = non_field[0]
+        elif form.errors.get("mentor"):
+            err_msg = form.errors["mentor"][0]
+        messages.error(request, err_msg)
+        return _redirect_hr_dashboard(request)
+
+    mentor = form.cleaned_data["mentor"]
+    target.mentor = mentor
+    target.save(update_fields=["mentor"])
+    if mentor:
+        messages.success(request, f"Przypisano mentora dla {target.email}: {mentor.email}.")
+    else:
+        messages.success(request, f"Usunięto przypisanego mentora dla {target.email}.")
     return _redirect_hr_dashboard(request)
 
 

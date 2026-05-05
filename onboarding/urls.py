@@ -1,35 +1,51 @@
 from django.urls import path
-from .views import user_tasks_list, user_competency_paths_with_tasks, user_task_detail
+
 from .views import (
-    user_tasks_list,
-    user_competency_paths_with_tasks,
-    mentor_task_management,
-    mentor_assign_task,
-    mentor_create_task,
-    mentor_edit_task,
-    mentor_delete_user_task,
     mentor_assign_path,
-    mentor_delete_user_path,
-    mentor_create_path,
+    mentor_path_tasks_json,
+    mentor_assign_task,
     mentor_change_user_task_status,
+    mentor_create_path,
+    mentor_create_task_inline,
+    mentor_create_task,
+    mentor_delete_user_path,
+    mentor_delete_user_task,
+    mentor_edit_task,
+    mentor_task_management,
+    user_competency_paths_with_tasks,
+    user_path_detail,
+    user_submit_task,
+    user_task_detail,
+    user_tasks_calendar,
+    user_tasks_list,
 )
 
 app_name = "onboarding"
 
 urlpatterns = [
     path('onboarding/tasks/', user_tasks_list, name='user_tasks_list'),
+    path('onboarding/tasks/calendar/', user_tasks_calendar, name='user_tasks_calendar'),
+    path(
+        'onboarding/tasks/calendar/<int:year>/<int:month>/',
+        user_tasks_calendar,
+        name='user_tasks_calendar_month',
+    ),
     path('onboarding/paths/', user_competency_paths_with_tasks, name='user_competency_paths_with_tasks'),
+    path('onboarding/paths/<int:user_path_id>/', user_path_detail, name='user_path_detail'),
     path("task/<int:user_task_id>/", user_task_detail, name="user_task_detail"),
+    path('task/<int:user_task_id>/submit/', user_submit_task, name='user_submit_task'),
     # Mentor routes
     path('mentor/tasks/', mentor_task_management, name='mentor_task_management'),
     path('mentor/tasks/<int:student_id>/', mentor_task_management, name='mentor_task_management'),
     path('mentor/assign-task/<int:student_id>/', mentor_assign_task, name='mentor_assign_task'),
     path('mentor/create-task/', mentor_create_task, name='mentor_create_task'),
+    path('mentor/create-task-inline/', mentor_create_task_inline, name='mentor_create_task_inline'),
     path('mentor/edit-task/<int:task_id>/', mentor_edit_task, name='mentor_edit_task'),
     path('mentor/delete-user-task/<int:user_task_id>/', mentor_delete_user_task, name='mentor_delete_user_task'),
     path('mentor/change-user-task-status/<int:user_task_id>/', mentor_change_user_task_status,
          name='mentor_change_user_task_status'),
     path('mentor/assign-path/<int:student_id>/', mentor_assign_path, name='mentor_assign_path'),
+    path('mentor/path-tasks/<int:path_id>/', mentor_path_tasks_json, name='mentor_path_tasks_json'),
     path('mentor/delete-user-path/<int:user_path_id>/', mentor_delete_user_path, name='mentor_delete_user_path'),
     path('mentor/create-path/', mentor_create_path, name='mentor_create_path'),
 ]

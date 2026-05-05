@@ -11,34 +11,123 @@
             </div>
             <div class="card-body">
                 {% if paths_with_tasks %}
-                    {% for item in paths_with_tasks %}
-                        <div class="card mb-4 border-start border-primary border-4 shadow-sm">
-                            <div class="card-header bg-white">
-                                <h4 class="text-primary mb-1">{{ item.user_path.path.name }}</h4>
-                                <p class="text-muted small mb-0">{{ item.user_path.path.description|default_if_none:"Brak opisu" }}</p>
+                    <form method="get" class="row g-3 mb-4 align-items-end">
+                        <div class="col-md-4">
+                            <label for="path_sort" class="form-label">Sortowanie ścieżek</label>
+                            <select class="form-select" id="path_sort" name="path_sort">
+                                {% for value, label in path_sort_options.items %}
+                                    <option value="{{ value }}" {% if path_sort == value %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="task_sort" class="form-label">Sortowanie zadań</label>
+                            <select class="form-select" id="task_sort" name="task_sort">
+                                {% for value, label in task_sort_options.items %}
+                                    <option value="{{ value }}" {% if task_sort == value %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-check form-switch mt-3">
+                                <input class="form-check-input" type="checkbox" role="switch" id="show_completed" name="show_completed" value="1" {% if show_completed %}checked{% endif %}>
+                                <label class="form-check-label" for="show_completed">
+                                    Pokazuj także zakończone zadania
+                                </label>
                             </div>
-                            <div class="card-body">
-                                <h5 class="card-title small text-uppercase text-muted mb-3">Zadania w tej ścieżce:</h5>
-                                <div class="list-group list-group-flush">
-                                    {% if item.tasks %}
-                                        {% for task in item.tasks %}
-                                            <div class="list-group-item d-flex justify-content-between align-items-center bg-transparent px-0">
-                                                <div>
-                                                    <div class="fw-bold">{{ task.title }}</div>
-                                                    {% if task.description %}
-                                                        <div class="small text-muted">{{ task.description }}</div>
-                                                    {% endif %}
-                                                </div>
-                                                <i class="fas fa-check-circle text-muted opacity-25"></i>
+                            <button type="submit" class="btn btn-outline-primary btn-sm mt-2">Zastosuj</button>
+                        </div>
+                    </form>
+
+                    <div class="accordion" id="pathsAccordion">
+                        {% for item in paths_with_tasks %}
+                            <div class="accordion-item mb-3 border-start border-primary border-4 shadow-sm">
+                                <h2 class="accordion-header" id="heading{{ item.user_path.user_path_id }}">
+                                    <button
+                                        class="accordion-button {% if not forloop.first %}collapsed{% endif %}"
+                                        type="button"
+                                        data-bs-toggle="collapse"
+                                        data-bs-target="#collapse{{ item.user_path.user_path_id }}"
+                                        aria-expanded="{% if forloop.first %}true{% else %}false{% endif %}"
+                                        aria-controls="collapse{{ item.user_path.user_path_id }}"
+                                    >
+                                        <div>
+                                            <h4 class="text-primary mb-1">{{ item.user_path.path.name }}</h4>
+                                            <p class="text-muted small mb-1">{{ item.user_path.path.description|default_if_none:"Brak opisu" }}</p>
+                                            <span class="badge bg-light text-dark">
+                                                {{ item.open_tasks_count }} aktywne / {{ item.total_tasks_count }} wszystkie
+                                            </span>
+                                        </div>
+                                    </button>
+                                </h2>
+
+                                <div
+                                    id="collapse{{ item.user_path.user_path_id }}"
+                                    class="accordion-collapse collapse {% if forloop.first %}show{% endif %}"
+                                    aria-labelledby="heading{{ item.user_path.user_path_id }}"
+                                    data-bs-parent="#pathsAccordion"
+                                >
+                                    <div class="accordion-body">
+                                        {% if item.user_path.assigned_by %}
+                                            <div class="mb-3">
+                                                <a href="{% url 'chat:chat_inbox_user' item.user_path.assigned_by.id %}?ctx_type=path&ctx_id={{ item.user_path.user_path_id }}" class="btn btn-sm btn-outline-primary">
+                                                    <i class="fas fa-comment-dots me-1"></i> Czat o tej ścieżce
+                                                </a>
+                                                <a href="{% url 'onboarding:user_path_detail' item.user_path.user_path_id %}" class="btn btn-sm btn-outline-secondary ms-2">
+                                                    <i class="fas fa-list-ol me-1"></i> Podgląd ścieżki
+                                                </a>
                                             </div>
-                                        {% endfor %}
-                                    {% else %}
-                                        <div class="text-muted fst-italic">Brak przypisanych zadań do tej ścieżki.</div>
-                                    {% endif %}
+                                        {% else %}
+                                            <div class="mb-3">
+                                                <a href="{% url 'onboarding:user_path_detail' item.user_path.user_path_id %}" class="btn btn-sm btn-outline-secondary">
+                                                    <i class="fas fa-list-ol me-1"></i> Podgląd ścieżki
+                                                </a>
+                                            </div>
+                                        {% endif %}
+
+                                        <h5 class="card-title small text-uppercase text-muted mb-3">Zadania w tej ścieżce:</h5>
+                                        <div class="list-group list-group-flush">
+                                            {% if item.tasks %}
+                                                {% for item_task in item.tasks %}
+                                                    <div class="list-group-item d-flex justify-content-between align-items-center bg-transparent px-0">
+                                                        <div>
+                                                            <div class="fw-bold">{{ item_task.task.title }}</div>
+                                                            {% if item_task.task.description %}
+                                                                <div class="small text-muted">{{ item_task.task.description }}</div>
+                                                            {% endif %}
+                                                            {% if item_task.deadline %}
+                                                                <div class="small text-muted">
+                                                                    Deadline: {{ item_task.deadline|date:"d.m.Y" }}
+                                                                </div>
+                                                            {% endif %}
+                                                            {% if item_task.user_task %}
+                                                                <div class="mt-2">
+                                                                    <a href="{% url 'onboarding:user_task_detail' item_task.user_task.user_tasks_id %}" class="btn btn-sm btn-outline-secondary">
+                                                                        Otwórz zadanie
+                                                                    </a>
+                                                                </div>
+                                                            {% endif %}
+                                                        </div>
+                                                        {% if item_task.is_completed %}
+                                                            <span class="badge bg-success-subtle text-success-emphasis">
+                                                                <i class="fas fa-check-circle me-1"></i> Ukończone
+                                                            </span>
+                                                        {% else %}
+                                                            <span class="badge bg-warning-subtle text-warning-emphasis">
+                                                                W trakcie
+                                                            </span>
+                                                        {% endif %}
+                                                    </div>
+                                                {% endfor %}
+                                            {% else %}
+                                                <div class="text-muted fst-italic">Brak widocznych zadań dla tej ścieżki przy wybranych filtrach.</div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                    {% endfor %}
+                        {% endfor %}
+                    </div>
                 {% else %}
                     <div class="text-center py-5">
                         <i class="fas fa-map-signs fa-4x text-muted mb-3 opacity-25"></i>
