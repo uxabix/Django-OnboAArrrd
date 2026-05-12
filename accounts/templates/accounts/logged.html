@@ -15,6 +15,9 @@
                             <i class="fas fa-briefcase me-2"></i>Panel kadrowy (HR)
                         </a>
                     {% endif %}
+                    <a href="{% url 'accounts:user_profile' %}" class="btn btn-outline-secondary btn-lg">
+                        <i class="fas fa-id-card me-2"></i>Mój profil
+                    </a>
                     <a href="{% url 'onboarding:user_tasks_list' %}" class="btn btn-primary btn-lg">
                         <i class="fas fa-tasks me-2"></i>Moje zadania
                     </a>

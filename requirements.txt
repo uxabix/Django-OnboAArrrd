@@ -1,0 +1,7 @@
+django
+channels
+django-environ
+gunicorn
+uvicorn
+psycopg2-binary
+Pillow
