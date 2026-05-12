@@ -6,7 +6,7 @@ from chat.models import Messages
 
 User = get_user_model()
 
-def run(count=50, group=None):
+def run(count=6, group=None):
     # Pobierz użytkowników, którzy mają mentora
     users_with_mentor = User.objects.filter(mentor__isnull=False)
 
@@ -19,7 +19,7 @@ def run(count=50, group=None):
     for user in users_with_mentor:
         mentor = user.mentor
 
-        for i in range(1, count + 1):
+        for i in range(1, min(count, 6) + 1):
             # losowa data w ciągu ostatnich 3 miesięcy
             random_days = random.randint(0, 90)
             random_seconds = random.randint(0, 86400)
@@ -46,6 +46,6 @@ def run(count=50, group=None):
                 sent_at=random_datetime
             )
 
-        print(f"Added {count*2} messages for user {user.email}")
+        print(f"Added {min(count, 6) * 2} messages for user {user.email}")
 
     print("Seeding completed.")

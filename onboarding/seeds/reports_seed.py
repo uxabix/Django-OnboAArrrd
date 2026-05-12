@@ -12,7 +12,7 @@ def run(count=10, group=None):
 
     reports_created = 0
 
-    for i in range(count):
+    for i in range(min(count, 8)):
         generated_by = random.choice(users)
         user = random.choice([u for u in users if u != generated_by])
 
