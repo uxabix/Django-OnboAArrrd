@@ -228,10 +228,14 @@ def user_tasks_calendar(request, year=None, month=None):
 
     # Dla mentorów: dodatkowo pokaż deadline'y zadań ich podopiecznych.
     mentee_enriched = []
+    mentee_students = []
     if request.user.is_mentor:
+        mentee_students = list(
+            request.user.mentees.order_by('first_name', 'last_name', 'email')
+        )
         mentee_tasks = (
             User_tasks.objects.filter(user_id__mentor=request.user)
-            .select_related('user_id', 'task_id', 'task_id__path', 'assigned_by')
+            .select_related('user_id', 'task_id', 'task_id__path', 'task_id__task_type', 'assigned_by')
             .prefetch_related('statuses')
             .order_by('deadline')
         )
@@ -243,15 +247,98 @@ def user_tasks_calendar(request, year=None, month=None):
                 'days_until_deadline': ut.days_until_deadline,
                 'submission_date': ut.submission_date,
                 'is_mentee_task': True,
+                'student_id': ut.user_id_id,
                 'student_name': f"{ut.user_id.first_name} {ut.user_id.last_name}".strip() or ut.user_id.email,
             })
 
     for item in enriched:
         item['is_mentee_task'] = False
+        item['student_id'] = request.user.id
+        item['student_name'] = f"{request.user.first_name} {request.user.last_name}".strip() or request.user.email
+
+    # --- Kalendarzowe filtry ---
+    deadline_filter = request.GET.get('deadline_filter', 'all')
+    status_filter = request.GET.get('status_filter', 'all')
+    path_filter = request.GET.get('path_filter', 'all')
+    task_type_filter = request.GET.get('task_type_filter', 'all')
+    source_filter = request.GET.get('source_filter', 'all' if request.user.is_mentor else 'own')
+    mentor_students_mode = request.GET.get('mentor_students_mode', 'all')
+    selected_students_raw = request.GET.getlist('students')
+    selected_student_ids = {int(v) for v in selected_students_raw if str(v).isdigit()}
+
+    if deadline_filter not in ('all', 'on_track', 'approaching', 'overdue', 'on_time', 'late', 'active', 'completed'):
+        deadline_filter = 'all'
+    if status_filter not in ('all', Task_status.Status.DO_ZROBIENIA, Task_status.Status.W_TRAKCIE, Task_status.Status.DO_WERYFIKACJI, Task_status.Status.UKONCZONE):
+        status_filter = 'all'
+    if source_filter not in ('all', 'own', 'mentee'):
+        source_filter = 'all' if request.user.is_mentor else 'own'
+    if mentor_students_mode not in ('all', 'only', 'exclude'):
+        mentor_students_mode = 'all'
+
+    all_items = enriched + mentee_enriched
+    path_choices = {'all': 'Wszystkie ścieżki', 'no_path': 'Bez ścieżki'}
+    task_type_choices = {'all': 'Wszystkie typy'}
+    for item in all_items:
+        task = item['user_task'].task_id
+        if task and task.path:
+            path_choices[str(task.path_id)] = task.path.name
+        if task and task.task_type:
+            task_type_choices[str(task.task_type_id)] = task.task_type.task_type
+
+    # Filtrowanie po źródle (własne / uczniów)
+    filtered_items = list(all_items)
+    if request.user.is_mentor:
+        if source_filter == 'own':
+            filtered_items = [i for i in filtered_items if not i['is_mentee_task']]
+        elif source_filter == 'mentee':
+            filtered_items = [i for i in filtered_items if i['is_mentee_task']]
+    else:
+        filtered_items = [i for i in filtered_items if not i['is_mentee_task']]
+
+    # Filtrowanie po studentach dla mentora
+    if request.user.is_mentor and source_filter in ('all', 'mentee'):
+        if mentor_students_mode == 'only' and selected_student_ids:
+            filtered_items = [
+                i for i in filtered_items
+                if (not i['is_mentee_task']) or (i['student_id'] in selected_student_ids)
+            ]
+        elif mentor_students_mode == 'exclude' and selected_student_ids:
+            filtered_items = [
+                i for i in filtered_items
+                if (not i['is_mentee_task']) or (i['student_id'] not in selected_student_ids)
+            ]
+
+    # Filtrowanie po stanie deadline
+    if deadline_filter == 'active':
+        filtered_items = [i for i in filtered_items if i['state'] in ('on_track', 'approaching')]
+    elif deadline_filter == 'completed':
+        filtered_items = [i for i in filtered_items if i['state'] in ('on_time', 'late')]
+    elif deadline_filter != 'all':
+        filtered_items = [i for i in filtered_items if i['state'] == deadline_filter]
+
+    # Filtrowanie po statusie zadania
+    if status_filter != 'all':
+        filtered_items = [i for i in filtered_items if i['current_status'] == status_filter]
+
+    # Filtrowanie po ścieżce
+    if path_filter == 'no_path':
+        filtered_items = [i for i in filtered_items if not i['user_task'].task_id.path]
+    elif path_filter != 'all':
+        filtered_items = [
+            i for i in filtered_items
+            if i['user_task'].task_id.path and str(i['user_task'].task_id.path_id) == path_filter
+        ]
+
+    # Filtrowanie po typie zadania
+    if task_type_filter != 'all':
+        filtered_items = [
+            i for i in filtered_items
+            if i['user_task'].task_id.task_type and str(i['user_task'].task_id.task_type_id) == task_type_filter
+        ]
 
     # Mapa: data -> lista zadań
     tasks_by_date = {}
-    for item in enriched + mentee_enriched:
+    for item in filtered_items:
         d = item['user_task'].deadline
         tasks_by_date.setdefault(d, []).append(item)
 
@@ -306,6 +393,29 @@ def user_tasks_calendar(request, year=None, month=None):
             'stats': stats,
             'reminders': reminders,
             'is_mentor': request.user.is_mentor,
+            'deadline_filter': deadline_filter,
+            'status_filter': status_filter,
+            'path_filter': path_filter,
+            'task_type_filter': task_type_filter,
+            'source_filter': source_filter,
+            'mentor_students_mode': mentor_students_mode,
+            'selected_student_ids': selected_student_ids,
+            'mentee_students': mentee_students,
+            'path_choices': path_choices,
+            'task_type_choices': task_type_choices,
+            'status_choices': Task_status.Status.choices,
+            'filtered_items_count': len(filtered_items),
+            'deadline_filter_choices': [
+                ('all', 'Wszystkie'),
+                ('active', 'Aktywne'),
+                ('approaching', 'Zbliżający się termin'),
+                ('overdue', 'Przeterminowane'),
+                ('completed', 'Oddane / ukończone'),
+                ('on_time', 'Oddane w terminie'),
+                ('late', 'Oddane po terminie'),
+                ('on_track', 'W trakcie (bez ryzyka)'),
+            ],
+            'calendar_filter_querystring': request.GET.urlencode(),
         },
     )
 
