@@ -250,7 +250,11 @@
             <tbody>
                 {% for emp in employees %}
                 <tr>
-                    <td>{{ emp.first_name|default:"" }} {{ emp.last_name|default:"" }}</td>
+                    <td>
+                        <a href="{% url 'accounts:user_profile_detail' emp.id %}" class="text-decoration-none">
+                            {{ emp.first_name|default:"" }} {{ emp.last_name|default:"" }}
+                        </a>
+                    </td>
                     <td><small>{{ emp.email }}</small></td>
                     <td>{% include "accounts/includes/hr_role_pl.html" with role=emp.role only %}</td>
                     <td>
@@ -269,7 +273,9 @@
                     </td>
                     <td>
                         {% if emp.mentor %}
-                            {{ emp.mentor.first_name }} {{ emp.mentor.last_name }}
+                            <a href="{% url 'accounts:user_profile_detail' emp.mentor.id %}" class="text-decoration-none">
+                                {{ emp.mentor.first_name }} {{ emp.mentor.last_name }}
+                            </a>
                             <br><small class="text-muted">{{ emp.mentor.email }}</small>
                         {% else %}
                             <span class="text-muted">—</span>
@@ -294,10 +300,30 @@
                         <div class="hr-user-actions">
                             {% if emp.id == request.user.id %}
                                 <div class="hr-action-row">
+                                    <a href="{% url 'accounts:user_profile_detail' emp.id %}" class="btn btn-sm btn-outline-primary text-nowrap hr-action-h">Profil</a>
+                                </div>
+                                <div class="hr-action-row">
                                     <a href="{% url 'accounts:hr_change_own_password' %}" class="btn btn-sm btn-outline-secondary text-nowrap hr-action-h">Zmień swoje hasło</a>
                                 </div>
                             {% endif %}
                             {% if emp.id in manageable_ids or emp.id in role_manageable_ids %}
+                                {% if emp.id != request.user.id %}
+                                <div class="hr-action-row">
+                                    <a href="{% url 'accounts:user_profile_detail' emp.id %}" class="btn btn-sm btn-outline-primary text-nowrap hr-action-h">Profil</a>
+                                </div>
+                                {% endif %}
+                                {% if emp.role and emp.role.name|lower == "mentor" %}
+                                <div class="hr-action-row">
+                                    <button type="button"
+                                            class="btn btn-sm btn-outline-info text-nowrap hr-action-h"
+                                            data-bs-toggle="collapse"
+                                            data-bs-target="#mentorStudents{{ emp.id }}"
+                                            aria-expanded="false"
+                                            aria-controls="mentorStudents{{ emp.id }}">
+                                        Studenci mentora ({{ emp.hr_mentees_count }})
+                                    </button>
+                                </div>
+                                {% endif %}
                                 {% if emp.id in manageable_ids %}
                                 <form method="post" action="{% url 'accounts:hr_change_email' emp.id %}" class="hr-action-row mb-0">
                                     {% csrf_token %}
@@ -370,6 +396,29 @@
                         </div>
                     </td>
                 </tr>
+                {% if emp.role and emp.role.name|lower == "mentor" %}
+                <tr class="collapse" id="mentorStudents{{ emp.id }}">
+                    <td colspan="10" class="bg-light">
+                        <div class="small">
+                            <strong>Studenci przypisani do mentora {{ emp.first_name }} {{ emp.last_name }}:</strong>
+                        </div>
+                        {% if emp.hr_mentees %}
+                            <ul class="mb-0 mt-2">
+                                {% for mentee in emp.hr_mentees %}
+                                    <li>
+                                        <a href="{% url 'accounts:user_profile_detail' mentee.id %}">
+                                            {{ mentee.first_name }} {{ mentee.last_name }}
+                                        </a>
+                                        <span class="text-muted">({{ mentee.email }})</span>
+                                    </li>
+                                {% endfor %}
+                            </ul>
+                        {% else %}
+                            <div class="text-muted mt-2">Brak przypisanych studentów.</div>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endif %}
                 {% empty %}
                 <tr>
                     <td colspan="10" class="text-center text-muted py-4">Brak pracowników spełniających kryteria.</td>

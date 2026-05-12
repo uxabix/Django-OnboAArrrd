@@ -8,6 +8,9 @@ urlpatterns = [
     path("", views.home, name="home"),
     path("ranking-mentorow/", views.mentor_ranking, name="mentor_ranking"),
     path("accounts/logged/", views.logged, name="logged"),
+    path("accounts/profile/", views.user_profile, name="user_profile"),
+    path("accounts/profile/<int:user_id>/", views.user_profile, name="user_profile_detail"),
+    path("accounts/search/suggest/", views.user_search_suggest, name="user_search_suggest"),
     path(
         "accounts/password-first-change/",
         views.force_first_password_change,

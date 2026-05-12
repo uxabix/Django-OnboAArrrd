@@ -106,13 +106,30 @@ docker compose down
 
 # Database Seeding Guide
 
-This project provides modular seeding scripts for populating the database with test data. The seeds cover both `accounts` and `onboarding` applications and can be run individually or all together. The scripts are designed to be configurable by the number of records to create.
+This project provides modular seeders and a dedicated demo command for realistic onboarding data.
+The default demo dataset is intentionally compact (around 10 users) so it is easy to inspect in UI.
 
 ---
 
 ## 1. General Usage
 
-All seed commands are implemented as Django management commands under `core/management/commands/seed.py`. You can run the seeders with:
+All seed commands are implemented as Django management commands under `core/management/commands/`.
+
+### Recommended: full demo dataset
+Run the dedicated demo command:
+
+```bash
+docker compose exec web python manage.py seed_demo
+```
+
+Reset previous seed data and seed again:
+
+```bash
+docker compose exec web python manage.py seed_demo --reset-first
+```
+
+### Modular seeding (advanced)
+You can still run modular seeders via:
 
 python manage.py seed <seeder_name> [--count <number>]
 
@@ -121,84 +138,68 @@ python manage.py seed <seeder_name> [--count <number>]
 
 To run multiple seeders sequentially:
 
-`python manage.py seed roles users badges competency_paths tasks quizzes user_paths user_tasks task_status reports user_grades messages --count 10`
+`python manage.py seed roles users badges paths tasks quiz user_paths user_tasks task_status grades reports messages --count 10`
 
 ---
 
-## 2. Seeders
+## 2. What Demo Seed Includes
 
-### **Accounts Application**
-
-- `roles` – creates roles in the system (e.g., Mentor, Student).  
-- `users` – creates test users, assigns them to the `TestUsers` group, and links students to mentors.  
-
-### **Onboarding Application**
-
-- `badges` – creates badges.  
-- `competency_paths` – creates competency paths.  
-- `task_types` – creates task types (text, quiz, etc.).  
-- `tasks` – creates tasks for competency paths.  
-- `quizzes` – creates quizzes, questions, and answers linked to tasks.  
-- `user_paths` – assigns competency paths to users.  
-- `user_tasks` – assigns tasks to users with deadlines and `assigned_by` references.  
-- `task_status` – creates multiple statuses for each user task.  
-- `reports` – generates reports between users.  
-- `user_grades` – assigns grades to completed tasks.
-
-### **Chat Application**
-
-- `messages` – creates messages between the user and his mentor in the system.
+- ~10 deterministic users with roles: Admin, HR, Mentor, Student.
+- Real login credentials are printed to the console after seeding.
+- Students are linked to mentors; if superusers exist, at least one student is linked to a superuser too.
+- Competency paths and tasks are realistic (not random placeholders).
+- User tasks include mixed deadline scenarios and status progressions:
+  - completed on time
+  - completed late
+  - overdue (not submitted)
+  - in progress
+  - to do
+- Mentor stars are generated based on completed tasks.
+- Grades, reports, badges, quiz data, and chat messages are generated in moderate volume for demo purposes.
 
 ---
 
 ## 3. Examples
 
-Run all seeders:
+Run full demo data setup:
 ```bash
-docker compose exec web python manage.py seed 
+docker compose exec web python manage.py seed_demo
 ```
-Create 10 roles:
+
+Run cleanup + full demo setup:
 ```bash
-docker compose exec web python manage.py seed roles --count 10
+docker compose exec web python manage.py seed_demo --reset-first
 ```
-Create 50 users and assign them to the `TestUsers` group:
+
+Run selected modular seeders:
 ```bash
-docker compose exec web python manage.py seed users --count 50
-```
-Create tasks and related quizzes:
-```bash
-docker compose exec web python manage.py seed tasks quizzes --count 100
-```
-Generate user paths, tasks, and task statuses:
-```bash
-docker compose exec web python manage.py seed user_paths user_tasks task_status --count 5
-```
-Generate reports and grades:
-```bash
-docker compose exec web python manage.py seed reports user_grades --count 20
+docker compose exec web python manage.py seed roles users paths tasks user_paths user_tasks task_status --count 10
 ```
 ---
 ### Clearing Test Data
 
-You can remove all data related to users in the `TestUsers` group using the `clear_test_data` management command. This is useful if you want to reset the test data without affecting real users.
+You can remove seeded data with `clear_test_data`.
+The command is designed to clean both current demo seed data and legacy seed records created by older seeders.
 
 Run the command:
 ```bash
 docker compose exec web python manage.py clear_test_data
 ```
 
-This will delete:
+Cleanup with preserved seed users:
+```bash
+docker compose exec web python manage.py clear_test_data --keep-users
+```
 
-- All `CustomUser` instances in the `TestUsers` group  
-- Related onboarding data, including:
-  - `User_badges`
-  - `User_paths`
-  - `User_tasks`
-  - `Task_status`
-  - `Reports`
-  - `User_grade`
+The cleanup command removes:
 
-The command uses a database transaction to ensure all related data is removed safely.
+- Seed users from `TestUsers` and legacy seed emails (`@test.com`, `@onboard.local`)  
+- Related chat and onboarding data (`Messages`, `User_tasks`, `Task_status`, `User_paths`, `Reports`, `User_grade`, `User_badges`)  
+- Legacy and demo-generated paths/tasks/badges (including old placeholder records like `Competency Path *`, `Task *`, `Badge *`)
+
+Notes:
+- Superusers are not deleted by cleanup.
+- The command uses a DB transaction for safe cleanup.
 
 ---
 
@@ -209,14 +210,14 @@ The command uses a database transaction to ensure all related data is removed sa
   - `tasks` depends on `competency_paths` and `task_types`.  
   - `quizzes` depend on `tasks`.  
   - `user_tasks` depends on `users` and `tasks`.  
-- All seeds are **deterministic** (no Faker) and produce repeatable results.
-- You can modify the `--count` argument to generate more or fewer records depending on your testing needs.  
+- Demo seeding is deterministic and focused on product-like scenarios.
+- For day-to-day work, prefer `seed_demo` over random/large datasets.
 
 ---
 
 ## 5. Summary
 
-Seeding scripts allow you to quickly populate the database with realistic test data across all models in `accounts` and `onboarding`. Use the modular commands or run them all sequentially for a full setup.
+Use `seed_demo` for a fast, realistic environment that showcases key flows (profiles, mentorship, tasks, deadlines, stars, chat). Use modular `seed` only when you need custom partial data.
 
 ---
 

@@ -1,13 +1,20 @@
 from onboarding.models import Badges
-import random
 
 def run(count=10, group=None):
-    for i in range(1, count + 1):
-        badge = Badges.objects.create(
-            name=f"Badge {i}",
-            description=f"This is description for Badge {i}",
-            points=random.randint(5, 100),
+    badges_data = [
+        ("Fast Starter", "Szybkie wykonanie pierwszych zadan onboardingowych.", 20),
+        ("Quality Keeper", "Wysoka jakosc realizacji zadan.", 40),
+        ("Reliable Teammate", "Terminowosc i dobra komunikacja z mentorem.", 30),
+        ("Mentor Favorite", "Stabilne postepy i proaktywna postawa.", 50),
+    ]
+    created = 0
+    for name, description, points in badges_data:
+        _, was_created = Badges.objects.get_or_create(
+            name=name,
+            defaults={"description": description, "points": points},
         )
-        print(f"Created badge: {badge.name}")
+        if was_created:
+            created += 1
+            print(f"Created badge: {name}")
 
-    print(f"Created {count} badges.")
+    print(f"Badges prepared. Newly created: {created}.")

@@ -3,10 +3,14 @@ from django.contrib import messages
 from django.contrib.auth import update_session_auth_hash
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import SetPasswordForm
-from django.shortcuts import redirect, render
+from django.db import models
+from django.http import JsonResponse
+from django.shortcuts import get_object_or_404, redirect, render
+from django.views.decorators.http import require_GET
 
 from .decorators import user_can_access_hr_panel
 from .forms import apply_bootstrap_control_widgets
+from .models import CustomUser
 
 
 def home(request):
@@ -23,8 +27,129 @@ def logged(request):
 
 
 @login_required
+def user_profile(request, user_id=None):
+    profile_user = request.user if user_id is None else get_object_or_404(
+        CustomUser.objects.select_related("role", "mentor"),
+        pk=user_id,
+    )
+    is_own_profile = profile_user.pk == request.user.pk
+
+    from onboarding.models import (
+        Task_status,
+        User_badges,
+        User_paths,
+        User_tasks,
+    )
+
+    user_search = (request.GET.get("user_search") or "").strip()
+    user_search_results = []
+    if user_search:
+        user_search_results = list(
+            CustomUser.objects.select_related("role")
+            .filter(
+                models.Q(first_name__icontains=user_search)
+                | models.Q(last_name__icontains=user_search)
+                | models.Q(email__icontains=user_search)
+            )
+            .order_by("first_name", "last_name", "email")[:25]
+        )
+
+    user_tasks_qs = (
+        User_tasks.objects.filter(user_id=profile_user)
+        .select_related("task_id", "task_id__path", "assigned_by")
+        .prefetch_related("statuses")
+    )
+    user_tasks = list(user_tasks_qs)
+    total_tasks = len(user_tasks)
+    completed_tasks = sum(
+        1 for user_task in user_tasks if user_task.current_status == Task_status.Status.UKONCZONE
+    )
+    submitted_for_review_tasks = sum(
+        1 for user_task in user_tasks if user_task.current_status == Task_status.Status.DO_WERYFIKACJI
+    )
+    in_progress_tasks = sum(
+        1 for user_task in user_tasks if user_task.current_status == Task_status.Status.W_TRAKCIE
+    )
+    to_do_tasks = sum(
+        1 for user_task in user_tasks if user_task.current_status == Task_status.Status.DO_ZROBIENIA
+    )
+    overdue_tasks = sum(1 for user_task in user_tasks if user_task.deadline_state == "overdue")
+
+    mentees = list(profile_user.mentees.select_related("role", "mentor").order_by("first_name", "last_name", "email"))
+    mentees_count = len(mentees)
+    mentees_task_total = User_tasks.objects.filter(user_id__mentor=profile_user).count()
+    mentees_completed_tasks = User_tasks.objects.filter(
+        user_id__mentor=profile_user,
+        statuses__new_status=Task_status.Status.UKONCZONE,
+    ).distinct().count()
+
+    context = {
+        "profile_user": profile_user,
+        "is_own_profile": is_own_profile,
+        "mentor_name": (
+            f"{profile_user.mentor.first_name} {profile_user.mentor.last_name}".strip() or profile_user.mentor.email
+        ) if profile_user.mentor else None,
+        "mentees": mentees,
+        "mentees_count": mentees_count,
+        "user_search": user_search,
+        "user_search_results": user_search_results,
+        "stats": {
+            "stars": profile_user.stars,
+            "paths_count": User_paths.objects.filter(user=profile_user).count(),
+            "tasks_total": total_tasks,
+            "tasks_completed": completed_tasks,
+            "tasks_submitted_for_review": submitted_for_review_tasks,
+            "tasks_in_progress": in_progress_tasks,
+            "tasks_to_do": to_do_tasks,
+            "tasks_overdue": overdue_tasks,
+            "badges_count": User_badges.objects.filter(user=profile_user).count(),
+            "reports_received_count": profile_user.reports_received.count(),
+            "reports_generated_count": profile_user.reports_generated.count(),
+            "grades_received_count": profile_user.reviewed_grades.count(),
+            "grades_given_count": profile_user.reviewer_grades.count(),
+            "avg_grade_received": profile_user.reviewed_grades.aggregate(models.Avg("rating"))["rating__avg"],
+            "avg_grade_given": profile_user.reviewer_grades.aggregate(models.Avg("rating"))["rating__avg"],
+            "mentees_count": mentees_count,
+            "mentees_task_total": mentees_task_total,
+            "mentees_tasks_completed": mentees_completed_tasks,
+        },
+    }
+    return render(request, "accounts/user_profile.html", context)
+
+
+@login_required
+@require_GET
+def user_search_suggest(request):
+    q = (request.GET.get("q") or "").strip()
+    if len(q) < 2:
+        return JsonResponse({"results": []})
+
+    users = (
+        CustomUser.objects.select_related("role")
+        .filter(
+            models.Q(first_name__icontains=q)
+            | models.Q(last_name__icontains=q)
+            | models.Q(email__icontains=q)
+        )
+        .order_by("first_name", "last_name", "email")[:8]
+    )
+
+    payload = []
+    for user in users:
+        full_name = f"{(user.first_name or '').strip()} {(user.last_name or '').strip()}".strip() or user.email
+        payload.append(
+            {
+                "id": user.id,
+                "name": full_name,
+                "email": user.email,
+                "role": user.role.name if user.role else "",
+            }
+        )
+    return JsonResponse({"results": payload})
+
+
+@login_required
 def mentor_ranking(request):
-    from .models import CustomUser
     from django.core.paginator import Paginator
     mentors = CustomUser.objects.filter(
     role__name='Mentor'

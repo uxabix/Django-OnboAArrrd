@@ -1,0 +1,195 @@
+{% extends "base.html" %}
+
+{% block title %}Profil użytkownika - OnboAArrrd{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+    <div class="col-lg-5">
+        <div class="card h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <h2 class="h4 mb-0">
+                        {% if profile_user.first_name or profile_user.last_name %}
+                            {{ profile_user.first_name }} {{ profile_user.last_name }}
+                        {% else %}
+                            {{ profile_user.email }}
+                        {% endif %}
+                    </h2>
+                    {% if is_own_profile %}
+                        <span class="badge text-bg-primary">Twój profil</span>
+                    {% endif %}
+                </div>
+
+                <p class="text-muted mb-3">{{ profile_user.email }}</p>
+                <div class="d-flex gap-2 mb-3">
+                    {% if is_own_profile %}
+                        <a href="{% url 'chat:chat_inbox' %}" class="btn btn-outline-primary btn-sm">
+                            <i class="fas fa-comments me-1"></i>Wiadomości
+                        </a>
+                    {% else %}
+                        <a href="{% url 'chat:chat_inbox_user' profile_user.id %}" class="btn btn-outline-primary btn-sm">
+                            <i class="fas fa-comments me-1"></i>Napisz wiadomość
+                        </a>
+                    {% endif %}
+                </div>
+
+                <dl class="row mb-0">
+                    <dt class="col-5">Rola</dt>
+                    <dd class="col-7">{{ profile_user.role.name|default:"Brak roli" }}</dd>
+
+                    <dt class="col-5">Status konta</dt>
+                    <dd class="col-7">{{ profile_user.status }}</dd>
+
+                    <dt class="col-5">Data utworzenia</dt>
+                    <dd class="col-7">{{ profile_user.created_at|date:"Y-m-d H:i" }}</dd>
+
+                    <dt class="col-5">Mentor</dt>
+                    <dd class="col-7">
+                        {% if profile_user.mentor %}
+                            <a href="{% url 'accounts:user_profile_detail' profile_user.mentor.id %}">
+                                {{ mentor_name }}
+                            </a>
+                        {% else %}
+                            Nie przypisano
+                        {% endif %}
+                    </dd>
+
+                    <dt class="col-5">Podopieczni</dt>
+                    <dd class="col-7">{{ stats.mentees_count }}</dd>
+
+                    <dt class="col-5">Gwiazdki</dt>
+                    <dd class="col-7">{{ stats.stars }}</dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-7">
+        <div class="card h-100">
+            <div class="card-body">
+                <h3 class="h5 mb-3">Statystyki onboardingowe</h3>
+                <div class="row g-3">
+                    <div class="col-sm-6">
+                        <div class="border rounded p-3">
+                            <div class="small text-muted">Przypisane ścieżki</div>
+                            <div class="h4 mb-0">{{ stats.paths_count }}</div>
+                        </div>
+                    </div>
+                    <div class="col-sm-6">
+                        <div class="border rounded p-3">
+                            <div class="small text-muted">Przypisane zadania</div>
+                            <div class="h4 mb-0">{{ stats.tasks_total }}</div>
+                        </div>
+                    </div>
+                    <div class="col-sm-6">
+                        <div class="border rounded p-3">
+                            <div class="small text-muted">Ukończone zadania</div>
+                            <div class="h4 mb-0 text-success">{{ stats.tasks_completed }}</div>
+                        </div>
+                    </div>
+                    <div class="col-sm-6">
+                        <div class="border rounded p-3">
+                            <div class="small text-muted">Do weryfikacji</div>
+                            <div class="h4 mb-0 text-warning">{{ stats.tasks_submitted_for_review }}</div>
+                        </div>
+                    </div>
+                    <div class="col-sm-6">
+                        <div class="border rounded p-3">
+                            <div class="small text-muted">W trakcie / do zrobienia</div>
+                            <div class="h4 mb-0">{{ stats.tasks_in_progress }} / {{ stats.tasks_to_do }}</div>
+                        </div>
+                    </div>
+                    <div class="col-sm-6">
+                        <div class="border rounded p-3">
+                            <div class="small text-muted">Przeterminowane zadania</div>
+                            <div class="h4 mb-0 text-danger">{{ stats.tasks_overdue }}</div>
+                        </div>
+                    </div>
+                    <div class="col-sm-6">
+                        <div class="border rounded p-3">
+                            <div class="small text-muted">Odznaki</div>
+                            <div class="h4 mb-0">{{ stats.badges_count }}</div>
+                        </div>
+                    </div>
+                    <div class="col-sm-6">
+                        <div class="border rounded p-3">
+                            <div class="small text-muted">Raporty (otrzymane / wygenerowane)</div>
+                            <div class="h4 mb-0">{{ stats.reports_received_count }} / {{ stats.reports_generated_count }}</div>
+                        </div>
+                    </div>
+                    <div class="col-sm-6">
+                        <div class="border rounded p-3">
+                            <div class="small text-muted">Oceny (otrzymane / wystawione)</div>
+                            <div class="h4 mb-0">{{ stats.grades_received_count }} / {{ stats.grades_given_count }}</div>
+                        </div>
+                    </div>
+                    <div class="col-sm-6">
+                        <div class="border rounded p-3">
+                            <div class="small text-muted">Średnia ocen (otrzymane / wystawione)</div>
+                            <div class="h4 mb-0">
+                                {{ stats.avg_grade_received|floatformat:2|default:"-" }}
+                                /
+                                {{ stats.avg_grade_given|floatformat:2|default:"-" }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {% if stats.mentees_count > 0 %}
+                    <hr>
+                    <h4 class="h6">Mentoring</h4>
+                    <p class="mb-2">
+                        Łącznie zadań podopiecznych: <strong>{{ stats.mentees_task_total }}</strong>,
+                        ukończonych: <strong>{{ stats.mentees_tasks_completed }}</strong>.
+                    </p>
+                    <ul class="mb-0">
+                        {% for mentee in mentees %}
+                            <li>
+                                <a href="{% url 'accounts:user_profile_detail' mentee.id %}">
+                                    {{ mentee.first_name }} {{ mentee.last_name }} ({{ mentee.email }})
+                                </a>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if user_search %}
+<div class="card mt-4">
+    <div class="card-body">
+        <p class="text-muted mb-2">
+            Wyniki wyszukiwania z paska nawigacji dla: <strong>{{ user_search }}</strong> ({{ user_search_results|length }})
+        </p>
+        {% if user_search_results %}
+            <div class="list-group">
+                {% for found_user in user_search_results %}
+                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                        <div>
+                            <a href="{% url 'accounts:user_profile_detail' found_user.id %}" class="text-decoration-none fw-semibold">
+                                {{ found_user.first_name }} {{ found_user.last_name }}
+                            </a>
+                            <div class="small text-muted">
+                                {{ found_user.email }}{% if found_user.role %} - {{ found_user.role.name }}{% endif %}
+                            </div>
+                        </div>
+                        <div class="btn-group btn-group-sm">
+                            <a href="{% url 'accounts:user_profile_detail' found_user.id %}" class="btn btn-outline-secondary">Profil</a>
+                            {% if found_user.id != user.id %}
+                                <a href="{% url 'chat:chat_inbox_user' found_user.id %}" class="btn btn-outline-primary">Czat</a>
+                            {% endif %}
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="alert alert-light border mb-0">
+                Nie znaleziono użytkowników.
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+{% endblock %}

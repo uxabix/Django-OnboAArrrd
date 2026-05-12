@@ -71,13 +71,82 @@
                     <a href="{% url 'onboarding:user_tasks_list' %}" class="btn btn-light">
                         <i class="fas fa-list me-1"></i> Widok listy
                     </a>
-                    <a href="{% url 'onboarding:user_tasks_calendar_month' today_year today_month %}"
+                    <a href="{% url 'onboarding:user_tasks_calendar_month' today_year today_month %}{% if calendar_filter_querystring %}?{{ calendar_filter_querystring }}{% endif %}"
                        class="btn btn-outline-light">
                         <i class="fas fa-calendar-day me-1"></i> Dzisiaj
                     </a>
                 </div>
             </div>
             <div class="card-body">
+
+                <form method="get" class="row g-2 mb-3">
+                    <div class="col-md-3">
+                        <label class="form-label small mb-1">Terminowość</label>
+                        <select name="deadline_filter" class="form-select form-select-sm">
+                            {% for value, label in deadline_filter_choices %}
+                                <option value="{{ value }}" {% if deadline_filter == value %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small mb-1">Status zadania</label>
+                        <select name="status_filter" class="form-select form-select-sm">
+                            <option value="all" {% if status_filter == "all" %}selected{% endif %}>Wszystkie</option>
+                            {% for value, label in status_choices %}
+                                <option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label small mb-1">Ścieżka</label>
+                        <select name="path_filter" class="form-select form-select-sm">
+                            {% for value, label in path_choices.items %}
+                                <option value="{{ value }}" {% if path_filter == value %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small mb-1">Typ zadania</label>
+                        <select name="task_type_filter" class="form-select form-select-sm">
+                            {% for value, label in task_type_choices.items %}
+                                <option value="{{ value }}" {% if task_type_filter == value %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    {% if is_mentor %}
+                    <div class="col-md-2">
+                        <label class="form-label small mb-1">Źródło</label>
+                        <select name="source_filter" class="form-select form-select-sm">
+                            <option value="all" {% if source_filter == "all" %}selected{% endif %}>Wszystkie</option>
+                            <option value="own" {% if source_filter == "own" %}selected{% endif %}>Moje</option>
+                            <option value="mentee" {% if source_filter == "mentee" %}selected{% endif %}>Uczniów</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label small mb-1">Filtr uczniów</label>
+                        <select name="mentor_students_mode" class="form-select form-select-sm">
+                            <option value="all" {% if mentor_students_mode == "all" %}selected{% endif %}>Bez filtrowania</option>
+                            <option value="only" {% if mentor_students_mode == "only" %}selected{% endif %}>Pokaż tylko wybranych</option>
+                            <option value="exclude" {% if mentor_students_mode == "exclude" %}selected{% endif %}>Ukryj wybranych</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small mb-1">Wybrani uczniowie</label>
+                        <select name="students" class="form-select form-select-sm" multiple size="2">
+                            {% for student in mentee_students %}
+                                <option value="{{ student.id }}" {% if student.id in selected_student_ids %}selected{% endif %}>
+                                    {{ student.first_name }} {{ student.last_name }} ({{ student.email }})
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    {% endif %}
+                    <div class="col-12 d-flex align-items-center gap-2">
+                        <button class="btn btn-sm btn-primary" type="submit"><i class="fas fa-filter me-1"></i>Filtruj</button>
+                        <a href="{% url 'onboarding:user_tasks_calendar_month' year month %}" class="btn btn-sm btn-outline-secondary">Wyczyść</a>
+                        <span class="small text-muted">Zadań po filtrach: {{ filtered_items_count }}</span>
+                    </div>
+                </form>
 
                 {% if reminders %}
                     <div class="alert alert-warning border-warning">
@@ -99,12 +168,12 @@
 
                 <!-- Nawigacja po miesiącach -->
                 <div class="d-flex justify-content-between align-items-center mb-3">
-                    <a href="{% url 'onboarding:user_tasks_calendar_month' prev_year prev_month %}"
+                    <a href="{% url 'onboarding:user_tasks_calendar_month' prev_year prev_month %}{% if calendar_filter_querystring %}?{{ calendar_filter_querystring }}{% endif %}"
                        class="btn btn-outline-secondary btn-sm">
                         <i class="fas fa-chevron-left me-1"></i> Poprzedni
                     </a>
                     <h3 class="mb-0">{{ month_name }} {{ year }}</h3>
-                    <a href="{% url 'onboarding:user_tasks_calendar_month' next_year next_month %}"
+                    <a href="{% url 'onboarding:user_tasks_calendar_month' next_year next_month %}{% if calendar_filter_querystring %}?{{ calendar_filter_querystring }}{% endif %}"
                        class="btn btn-outline-secondary btn-sm">
                         Następny <i class="fas fa-chevron-right ms-1"></i>
                     </a>
