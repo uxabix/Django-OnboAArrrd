@@ -312,6 +312,18 @@
                                     <a href="{% url 'accounts:user_profile_detail' emp.id %}" class="btn btn-sm btn-outline-primary text-nowrap hr-action-h">Profil</a>
                                 </div>
                                 {% endif %}
+                                {% if emp.role and emp.role.name|lower == "mentor" %}
+                                <div class="hr-action-row">
+                                    <button type="button"
+                                            class="btn btn-sm btn-outline-info text-nowrap hr-action-h"
+                                            data-bs-toggle="collapse"
+                                            data-bs-target="#mentorStudents{{ emp.id }}"
+                                            aria-expanded="false"
+                                            aria-controls="mentorStudents{{ emp.id }}">
+                                        Studenci mentora ({{ emp.hr_mentees_count }})
+                                    </button>
+                                </div>
+                                {% endif %}
                                 {% if emp.id in manageable_ids %}
                                 <form method="post" action="{% url 'accounts:hr_change_email' emp.id %}" class="hr-action-row mb-0">
                                     {% csrf_token %}
@@ -384,6 +396,29 @@
                         </div>
                     </td>
                 </tr>
+                {% if emp.role and emp.role.name|lower == "mentor" %}
+                <tr class="collapse" id="mentorStudents{{ emp.id }}">
+                    <td colspan="10" class="bg-light">
+                        <div class="small">
+                            <strong>Studenci przypisani do mentora {{ emp.first_name }} {{ emp.last_name }}:</strong>
+                        </div>
+                        {% if emp.hr_mentees %}
+                            <ul class="mb-0 mt-2">
+                                {% for mentee in emp.hr_mentees %}
+                                    <li>
+                                        <a href="{% url 'accounts:user_profile_detail' mentee.id %}">
+                                            {{ mentee.first_name }} {{ mentee.last_name }}
+                                        </a>
+                                        <span class="text-muted">({{ mentee.email }})</span>
+                                    </li>
+                                {% endfor %}
+                            </ul>
+                        {% else %}
+                            <div class="text-muted mt-2">Brak przypisanych studentów.</div>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endif %}
                 {% empty %}
                 <tr>
                     <td colspan="10" class="text-center text-muted py-4">Brak pracowników spełniających kryteria.</td>

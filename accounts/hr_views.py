@@ -207,6 +207,28 @@ def hr_dashboard(request):
         CustomUserModel.objects.filter(role__name__iexact="Mentor")
         .order_by("first_name", "last_name", "email")
     )
+    mentor_ids_on_page = [
+        u.pk for u in page_obj.object_list
+        if u.role and (u.role.name or "").strip().lower() == "mentor"
+    ]
+    mentees_by_mentor_id = {}
+    if mentor_ids_on_page:
+        mentees_qs = (
+            CustomUserModel.objects.filter(mentor_id__in=mentor_ids_on_page)
+            .select_related("role", "mentor")
+            .order_by("mentor_id", "first_name", "last_name", "email")
+        )
+        for mentee in mentees_qs:
+            mentees_by_mentor_id.setdefault(mentee.mentor_id, []).append(mentee)
+
+    employees = list(page_obj.object_list)
+    for employee in employees:
+        if employee.role and (employee.role.name or "").strip().lower() == "mentor":
+            employee.hr_mentees = mentees_by_mentor_id.get(employee.pk, [])
+            employee.hr_mentees_count = len(employee.hr_mentees)
+        else:
+            employee.hr_mentees = []
+            employee.hr_mentees_count = 0
     querystring_no_page = _querystring_except_page(request.GET)
     db_export_form = HrDbExportForm()
     db_import_form = HrDbImportForm()
@@ -216,7 +238,7 @@ def hr_dashboard(request):
         "accounts/hr_dashboard.html",
         {
             "page_obj": page_obj,
-            "employees": page_obj.object_list,
+            "employees": employees,
             "assignable_roles": assignable_roles,
             "all_roles": all_roles,
             "mentor_candidates": mentor_candidates,
