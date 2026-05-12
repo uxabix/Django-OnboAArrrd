@@ -42,6 +42,9 @@
                             {{ selected_student.first_name }} {{ selected_student.last_name }}
                         </h2>
                         <div class="btn-group">
+                            <a href="{% url 'accounts:user_profile_detail' selected_student.id %}" class="btn btn-outline-secondary">
+                                <i class="fas fa-id-card me-1"></i> Profil
+                            </a>
                             <a href="{% url 'chat:chat_mentor' selected_student.id %}" class="btn btn-outline-primary">
                                 <i class="fas fa-comment me-1"></i> Czat
                             </a>

@@ -4,7 +4,9 @@ from django.contrib.auth import update_session_auth_hash
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import SetPasswordForm
 from django.db import models
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.views.decorators.http import require_GET
 
 from .decorators import user_can_access_hr_panel
 from .forms import apply_bootstrap_control_widgets
@@ -35,10 +37,22 @@ def user_profile(request, user_id=None):
     from onboarding.models import (
         Task_status,
         User_badges,
-        User_grade,
         User_paths,
         User_tasks,
     )
+
+    user_search = (request.GET.get("user_search") or "").strip()
+    user_search_results = []
+    if user_search:
+        user_search_results = list(
+            CustomUser.objects.select_related("role")
+            .filter(
+                models.Q(first_name__icontains=user_search)
+                | models.Q(last_name__icontains=user_search)
+                | models.Q(email__icontains=user_search)
+            )
+            .order_by("first_name", "last_name", "email")[:25]
+        )
 
     user_tasks_qs = (
         User_tasks.objects.filter(user_id=profile_user)
@@ -77,6 +91,8 @@ def user_profile(request, user_id=None):
         ) if profile_user.mentor else None,
         "mentees": mentees,
         "mentees_count": mentees_count,
+        "user_search": user_search,
+        "user_search_results": user_search_results,
         "stats": {
             "stars": profile_user.stars,
             "paths_count": User_paths.objects.filter(user=profile_user).count(),
@@ -99,6 +115,37 @@ def user_profile(request, user_id=None):
         },
     }
     return render(request, "accounts/user_profile.html", context)
+
+
+@login_required
+@require_GET
+def user_search_suggest(request):
+    q = (request.GET.get("q") or "").strip()
+    if len(q) < 2:
+        return JsonResponse({"results": []})
+
+    users = (
+        CustomUser.objects.select_related("role")
+        .filter(
+            models.Q(first_name__icontains=q)
+            | models.Q(last_name__icontains=q)
+            | models.Q(email__icontains=q)
+        )
+        .order_by("first_name", "last_name", "email")[:8]
+    )
+
+    payload = []
+    for user in users:
+        full_name = f"{(user.first_name or '').strip()} {(user.last_name or '').strip()}".strip() or user.email
+        payload.append(
+            {
+                "id": user.id,
+                "name": full_name,
+                "email": user.email,
+                "role": user.role.name if user.role else "",
+            }
+        )
+    return JsonResponse({"results": payload})
 
 
 @login_required

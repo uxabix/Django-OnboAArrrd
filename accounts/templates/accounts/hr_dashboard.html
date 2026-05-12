@@ -250,7 +250,11 @@
             <tbody>
                 {% for emp in employees %}
                 <tr>
-                    <td>{{ emp.first_name|default:"" }} {{ emp.last_name|default:"" }}</td>
+                    <td>
+                        <a href="{% url 'accounts:user_profile_detail' emp.id %}" class="text-decoration-none">
+                            {{ emp.first_name|default:"" }} {{ emp.last_name|default:"" }}
+                        </a>
+                    </td>
                     <td><small>{{ emp.email }}</small></td>
                     <td>{% include "accounts/includes/hr_role_pl.html" with role=emp.role only %}</td>
                     <td>
@@ -269,7 +273,9 @@
                     </td>
                     <td>
                         {% if emp.mentor %}
-                            {{ emp.mentor.first_name }} {{ emp.mentor.last_name }}
+                            <a href="{% url 'accounts:user_profile_detail' emp.mentor.id %}" class="text-decoration-none">
+                                {{ emp.mentor.first_name }} {{ emp.mentor.last_name }}
+                            </a>
                             <br><small class="text-muted">{{ emp.mentor.email }}</small>
                         {% else %}
                             <span class="text-muted">—</span>
@@ -294,10 +300,18 @@
                         <div class="hr-user-actions">
                             {% if emp.id == request.user.id %}
                                 <div class="hr-action-row">
+                                    <a href="{% url 'accounts:user_profile_detail' emp.id %}" class="btn btn-sm btn-outline-primary text-nowrap hr-action-h">Profil</a>
+                                </div>
+                                <div class="hr-action-row">
                                     <a href="{% url 'accounts:hr_change_own_password' %}" class="btn btn-sm btn-outline-secondary text-nowrap hr-action-h">Zmień swoje hasło</a>
                                 </div>
                             {% endif %}
                             {% if emp.id in manageable_ids or emp.id in role_manageable_ids %}
+                                {% if emp.id != request.user.id %}
+                                <div class="hr-action-row">
+                                    <a href="{% url 'accounts:user_profile_detail' emp.id %}" class="btn btn-sm btn-outline-primary text-nowrap hr-action-h">Profil</a>
+                                </div>
+                                {% endif %}
                                 {% if emp.id in manageable_ids %}
                                 <form method="post" action="{% url 'accounts:hr_change_email' emp.id %}" class="hr-action-row mb-0">
                                     {% csrf_token %}

@@ -33,7 +33,9 @@
                                         <strong>#{{ page_obj.start_index|add:forloop.counter0 }}</strong>
                                     </td>
                                     <td>
-                                        <strong>{{ mentor.first_name }} {{ mentor.last_name }}</strong>
+                                        <a href="{% url 'accounts:user_profile_detail' mentor.id %}" class="text-decoration-none">
+                                            <strong>{{ mentor.first_name }} {{ mentor.last_name }}</strong>
+                                        </a>
                                         <br><small class="text-muted">{{ mentor.email }}</small>
                                     </td>
                                     <td>
@@ -43,6 +45,9 @@
                                     <td>{{ mentor.mentees.count }}</td>
                                     <td>{{ mentor.stars }}</td>
                                     <td>
+                                        <a href="{% url 'accounts:user_profile_detail' mentor.id %}" class="btn btn-sm btn-outline-secondary" title="Profil">
+                                            <i class="fas fa-id-card"></i>
+                                        </a>
                                         <a href="{% url 'chat:chat_mentor' mentor.id %}" class="btn btn-sm btn-info">
                                             <i class="fas fa-comments"></i>
                                         </a>

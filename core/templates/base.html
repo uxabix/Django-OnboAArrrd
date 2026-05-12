@@ -36,6 +36,23 @@
             color: #0d6efd;
             background-color: #e7f1ff;
         }
+        .navbar-user-search-wrap {
+            position: relative;
+            min-width: 280px;
+        }
+        .navbar-user-search-results {
+            position: absolute;
+            top: calc(100% + 4px);
+            left: 0;
+            right: 0;
+            z-index: 1050;
+            max-height: 320px;
+            overflow-y: auto;
+            display: none;
+        }
+        .navbar-user-search-results.show {
+            display: block;
+        }
         footer {
             background-color: #fff;
             border-top: 1px solid #dee2e6;
@@ -62,6 +79,22 @@
                         </li>
                     {% endif %}
                 </ul>
+                {% if user.is_authenticated %}
+                    <form class="d-flex me-3 navbar-user-search-wrap" method="get" action="{% url 'accounts:user_profile' %}" id="navbar-user-search-form" autocomplete="off">
+                        <input
+                            class="form-control form-control-sm me-2"
+                            type="search"
+                            name="user_search"
+                            id="navbar-user-search-input"
+                            placeholder="Szukaj użytkownika..."
+                            aria-label="Szukaj użytkownika"
+                        >
+                        <button class="btn btn-sm btn-outline-primary" type="submit">
+                            <i class="fas fa-search"></i>
+                        </button>
+                        <div class="list-group shadow-sm navbar-user-search-results" id="navbar-user-search-results"></div>
+                    </form>
+                {% endif %}
                 <ul class="navbar-nav ms-auto">
                     {% if user.is_authenticated %}
                         <li class="nav-item dropdown">
@@ -101,6 +134,86 @@
 
     <!-- Bootstrap 5 JS Bundle with Popper -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    {% if user.is_authenticated %}
+    <script>
+        (function () {
+            const input = document.getElementById("navbar-user-search-input");
+            const form = document.getElementById("navbar-user-search-form");
+            const resultsBox = document.getElementById("navbar-user-search-results");
+            if (!input || !form || !resultsBox) return;
+
+            let debounceTimer = null;
+
+            function hideResults() {
+                resultsBox.classList.remove("show");
+                resultsBox.innerHTML = "";
+            }
+
+            function renderResults(results, queryText) {
+                if (!results.length) {
+                    resultsBox.innerHTML = '<div class="list-group-item small text-muted">Brak wyników</div>';
+                    resultsBox.classList.add("show");
+                    return;
+                }
+                const items = results.map((u) => {
+                    const rolePart = u.role ? ` - ${u.role}` : "";
+                    return `
+                        <a href="/accounts/profile/${u.id}/" class="list-group-item list-group-item-action">
+                            <div class="fw-semibold">${u.name}</div>
+                            <div class="small text-muted">${u.email}${rolePart}</div>
+                        </a>
+                    `;
+                }).join("");
+                resultsBox.innerHTML = items + `
+                    <a href="/accounts/profile/?user_search=${encodeURIComponent(queryText)}" class="list-group-item list-group-item-action text-primary small">
+                        Pokaz wszystkie wyniki
+                    </a>
+                `;
+                resultsBox.classList.add("show");
+            }
+
+            async function fetchSuggestions(queryText) {
+                try {
+                    const response = await fetch(`/accounts/search/suggest/?q=${encodeURIComponent(queryText)}`, {
+                        headers: { "X-Requested-With": "XMLHttpRequest" },
+                        credentials: "same-origin",
+                    });
+                    if (!response.ok) {
+                        hideResults();
+                        return;
+                    }
+                    const data = await response.json();
+                    renderResults(data.results || [], queryText);
+                } catch (e) {
+                    hideResults();
+                }
+            }
+
+            input.addEventListener("input", function () {
+                const value = (input.value || "").trim();
+                clearTimeout(debounceTimer);
+                if (value.length < 2) {
+                    hideResults();
+                    return;
+                }
+                debounceTimer = setTimeout(() => fetchSuggestions(value), 220);
+            });
+
+            document.addEventListener("click", function (event) {
+                if (!form.contains(event.target)) {
+                    hideResults();
+                }
+            });
+
+            input.addEventListener("focus", function () {
+                const value = (input.value || "").trim();
+                if (value.length >= 2 && resultsBox.innerHTML.trim()) {
+                    resultsBox.classList.add("show");
+                }
+            });
+        })();
+    </script>
+    {% endif %}
     {% block extra_js %}{% endblock %}
 </body>
 </html>

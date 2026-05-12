@@ -21,6 +21,17 @@
                 </div>
 
                 <p class="text-muted mb-3">{{ profile_user.email }}</p>
+                <div class="d-flex gap-2 mb-3">
+                    {% if is_own_profile %}
+                        <a href="{% url 'chat:chat_inbox' %}" class="btn btn-outline-primary btn-sm">
+                            <i class="fas fa-comments me-1"></i>Wiadomości
+                        </a>
+                    {% else %}
+                        <a href="{% url 'chat:chat_inbox_user' profile_user.id %}" class="btn btn-outline-primary btn-sm">
+                            <i class="fas fa-comments me-1"></i>Napisz wiadomość
+                        </a>
+                    {% endif %}
+                </div>
 
                 <dl class="row mb-0">
                     <dt class="col-5">Rola</dt>
@@ -145,4 +156,40 @@
         </div>
     </div>
 </div>
+
+{% if user_search %}
+<div class="card mt-4">
+    <div class="card-body">
+        <p class="text-muted mb-2">
+            Wyniki wyszukiwania z paska nawigacji dla: <strong>{{ user_search }}</strong> ({{ user_search_results|length }})
+        </p>
+        {% if user_search_results %}
+            <div class="list-group">
+                {% for found_user in user_search_results %}
+                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                        <div>
+                            <a href="{% url 'accounts:user_profile_detail' found_user.id %}" class="text-decoration-none fw-semibold">
+                                {{ found_user.first_name }} {{ found_user.last_name }}
+                            </a>
+                            <div class="small text-muted">
+                                {{ found_user.email }}{% if found_user.role %} - {{ found_user.role.name }}{% endif %}
+                            </div>
+                        </div>
+                        <div class="btn-group btn-group-sm">
+                            <a href="{% url 'accounts:user_profile_detail' found_user.id %}" class="btn btn-outline-secondary">Profil</a>
+                            {% if found_user.id != user.id %}
+                                <a href="{% url 'chat:chat_inbox_user' found_user.id %}" class="btn btn-outline-primary">Czat</a>
+                            {% endif %}
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="alert alert-light border mb-0">
+                Nie znaleziono użytkowników.
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
 {% endblock %}
