@@ -1,4 +1,8 @@
+"""Create mentor grades tied to seeded ``User_tasks`` rows."""
+
 from onboarding.models import Task_status, User_grade, User_tasks
+
+
 def run(count=1, group=None):
     user_tasks = list(User_tasks.objects.select_related("assigned_by", "user_id").prefetch_related("statuses"))
     if not user_tasks:

@@ -1,3 +1,5 @@
+"""Populate ``Task_status`` history rows for seeded assignments."""
+
 from datetime import timedelta
 from django.utils import timezone
 from onboarding.models import Task_status, User_tasks

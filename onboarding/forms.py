@@ -1,9 +1,13 @@
+"""Django forms for onboarding task and path management screens."""
+
 from django import forms
 from django.db import models
 from .models import Tasks, User_tasks, Competency_paths, User_paths
 
 
 class TaskForm(forms.ModelForm):
+    """Model form for mentors editing reusable ``Tasks`` definitions."""
+
     class Meta:
         model = Tasks
         fields = ['path', 'task_type', 'title', 'description', 'path_order', 'public', 'need_verification']
@@ -14,6 +18,8 @@ class TaskForm(forms.ModelForm):
 
 
 class UserTaskForm(forms.ModelForm):
+    """Assign a catalog task to a user with mentor-controlled deadlines."""
+
     class Meta:
         model = User_tasks
         fields = ['task_id', 'deadline']
@@ -45,6 +51,8 @@ class UserTaskForm(forms.ModelForm):
 
 
 class UserPathForm(forms.ModelForm):
+    """Pick a competency path when assigning bundles to mentees."""
+
     class Meta:
         model = User_paths
         fields = ['path']
@@ -72,6 +80,8 @@ class UserPathForm(forms.ModelForm):
 
 
 class CompetencyPathForm(forms.ModelForm):
+    """Create or edit top-level ``Competency_paths`` metadata."""
+
     class Meta:
         model = Competency_paths
         fields = ['name', 'description']

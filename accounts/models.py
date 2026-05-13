@@ -1,8 +1,18 @@
+"""Database models for authentication, roles, and extended user profiles.
+
+This app defines the custom user model used as ``AUTH_USER_MODEL`` plus a
+``Roles`` lookup table for application-level authorization (mentor, student,
+HR, and so on).
+"""
+
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.db import models
 from django.utils import timezone
 
+
 class Roles(models.Model):
+    """Named role assigned to users (mentor, student, HR, etc.)."""
+
     role_id = models.BigAutoField(primary_key=True)
     name = models.CharField(max_length=60)
     description = models.TextField()
@@ -16,7 +26,23 @@ class Roles(models.Model):
 
 
 class CustomUserManager(BaseUserManager):
+    """Creates ``CustomUser`` rows with normalized email and optional password."""
+
     def create_user(self, email, password=None, **extra_fields):
+        """Persist a standard (non-staff) user.
+
+        Args:
+            email: Login identifier; must be present and is normalized.
+            password: Optional; when omitted an unusable password is stored.
+            **extra_fields: Additional model fields passed through to the model
+                constructor.
+
+        Returns:
+            CustomUser: The saved user instance.
+
+        Raises:
+            ValueError: If ``email`` is empty after stripping.
+        """
         if not email:
             raise ValueError("Email musi być podany")
 
@@ -32,6 +58,20 @@ class CustomUserManager(BaseUserManager):
         return user
 
     def create_superuser(self, email, password=None, **extra_fields):
+        """Create an active staff superuser account.
+
+        Args:
+            email: Login identifier.
+            password: Required non-empty password for interactive superusers.
+            **extra_fields: Passed to ``create_user``; ``is_staff`` and
+                ``is_superuser`` default to ``True``.
+
+        Returns:
+            CustomUser: The saved superuser.
+
+        Raises:
+            ValueError: If ``password`` is ``None`` or empty.
+        """
         extra_fields.setdefault("is_staff", True)
         extra_fields.setdefault("is_superuser", True)
         extra_fields.setdefault("status", CustomUser.UserStatus.ACTIVE)
@@ -43,8 +83,16 @@ class CustomUserManager(BaseUserManager):
 
 
 class CustomUser(AbstractBaseUser, PermissionsMixin):
+    """Email-based user with mentor linkage, HR password lifecycle, and gamified stars.
+
+    ``USERNAME_FIELD`` is ``email``. Optional ``mentor`` links students to a
+    mentor. HR-created accounts may carry a temporary plaintext password until
+    the user chooses their own (see middleware and HR views).
+    """
 
     class UserStatus(models.TextChoices):
+        """Lifecycle flag for HR-managed activation."""
+
         ACTIVE = "active"
         INACTIVE = "inactive"
 
@@ -95,8 +143,18 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
         return self.email
 
     def get_stars_display(self):
+        """Return a simple star emoji string for templates.
+
+        Returns:
+            str: Repeated star character scaled by ``self.stars``.
+        """
         return '⭐' * self.stars
 
     @property
     def is_mentor(self):
+        """Whether this user currently has at least one mentee.
+
+        Returns:
+            bool: ``True`` when the reverse ``mentees`` relation is non-empty.
+        """
         return self.mentees.exists()

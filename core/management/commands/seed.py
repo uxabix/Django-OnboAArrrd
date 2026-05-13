@@ -1,3 +1,5 @@
+"""Orchestrate modular database seeders for local development."""
+
 from django.core.management.base import BaseCommand
 from django.contrib.auth.models import Group
 from importlib import import_module
@@ -35,6 +37,8 @@ SEEDERS = {
 }
 
 class Command(BaseCommand):
+    """Run one or more registered seed modules (or ``all``)."""
+
     help = "Seed database with test data"
 
     def add_arguments(self, parser):
@@ -48,6 +52,12 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
+        """Dispatch to each seeder module's ``run`` hook.
+
+        Args:
+            *args: Unused positional args from Django.
+            **options: Parsed CLI options including ``modules`` and ``count``.
+        """
         modules = options['modules'] or ['all']
         count = options['count']
 

@@ -1,3 +1,5 @@
+"""HTTP views powering the unified mentor/student inbox experience."""
+
 from urllib.parse import urlencode
 
 from django.contrib.auth import get_user_model
@@ -15,11 +17,31 @@ CustomUser = get_user_model()
 
 
 def _display_name(user):
+    """Return a human readable label for templates and JSON payloads.
+
+    Args:
+        user: ``CustomUser`` instance.
+
+    Returns:
+        str: Full name when present, otherwise the email address.
+    """
     full = f"{(user.first_name or '').strip()} {(user.last_name or '').strip()}".strip()
     return full or user.email
 
 
 def _load_context(current_user, other_user, ctx_type, ctx_id):
+    """Resolve task/path chat scopes shared by two participants.
+
+    Args:
+        current_user: Authenticated user opening the thread.
+        other_user: Conversation partner.
+        ctx_type: ``task`` or ``path`` marker from the query string.
+        ctx_id: Primary key for the scoped object.
+
+    Returns:
+        tuple[str | None, Model | None, str | None]: Context kind, related
+        object, and display title; triple ``(None, None, None)`` when invalid.
+    """
     if not ctx_type or not ctx_id:
         return None, None, None
 
@@ -50,6 +72,18 @@ def _load_context(current_user, other_user, ctx_type, ctx_id):
 
 
 def _build_thread_meta(current_user, other_user, context_kind=None, context_obj=None, context_title=None):
+    """Compose UI titles/subtitles and query params for thread list entries.
+
+    Args:
+        current_user: Viewer user.
+        other_user: Counterpart user.
+        context_kind: Optional ``task`` or ``path`` discriminator.
+        context_obj: Optional related ``User_tasks`` / ``User_paths`` row.
+        context_title: Human readable label for the scoped object.
+
+    Returns:
+        tuple[str, str, dict]: Title, subtitle, and query dict for deep links.
+    """
     counterpart_name = _display_name(other_user)
     title = counterpart_name
     subtitle = "Rozmowa ogólna"
@@ -67,6 +101,16 @@ def _build_thread_meta(current_user, other_user, context_kind=None, context_obj=
 
 @login_required
 def chat_inbox(request, user_id=None):
+    """Render the split-pane inbox with filters, dual threads, and composer.
+
+    Args:
+        request: Authenticated ``HttpRequest`` supporting extensive ``GET``
+            filters for search, sorting, and context toggles.
+        user_id: Optional primary key selecting the primary thread partner.
+
+    Returns:
+        HttpResponse: Rendered ``chat/chat_inbox.html``.
+    """
     current_user = request.user
     query = (request.GET.get("q") or "").strip()
     ctx_type = (request.GET.get("ctx_type") or "").strip().lower()
@@ -362,18 +406,30 @@ def chat_inbox(request, user_id=None):
 # Backward-compatible aliases (old URLs/links)
 @login_required
 def chat_student(request):
+    """Backward compatible alias that routes to :func:`chat_inbox`."""
+
     return chat_inbox(request)
 
 
 @login_required
 def chat_mentor(request, student_id=None):
+    """Backward compatible mentor entry point delegating to :func:`chat_inbox`."""
+
     return chat_inbox(request, user_id=student_id)
 
 
 @login_required
 @require_GET
 def chat_updates(request, user_id):
-    """Return new messages for current dialog after given last_id."""
+    """Polling endpoint returning JSON-encoded new messages after ``last_id``.
+
+    Args:
+        request: Authenticated ``HttpRequest`` with ``ctx_*`` and ``last_id``.
+        user_id: Conversation partner primary key.
+
+    Returns:
+        JsonResponse: Payload describing up to 100 incremental messages.
+    """
     current_user = request.user
     other_user = get_object_or_404(CustomUser.objects.exclude(pk=current_user.pk), pk=user_id)
     ctx_type = (request.GET.get("ctx_type") or "").strip().lower()

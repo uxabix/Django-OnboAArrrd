@@ -104,6 +104,58 @@ docker compose exec web pytest -v
 docker compose down
 ```
 
+---
+
+## Documentation (Sphinx)
+
+API and module documentation are generated with **[Sphinx](https://www.sphinx-doc.org/)** using **`sphinx.ext.napoleon`** for **Google-style** docstrings. Source lives under `docs/` (`conf.py`, `index.rst`, `reference.rst`). HTML output is written to `docs/_build/` (ignored by Git).
+
+### Install tooling
+
+Sphinx and the Read the Docs theme are listed in `requirements.txt`. After dependencies are installed in your environment (or rebuilt into the `web` image), you do not need extra packages.
+
+### Build HTML locally
+
+From the repository root:
+
+```bash
+pip install -r requirements.txt
+sphinx-build -b html docs docs/_build
+```
+
+Open `docs/_build/index.html` in a browser.
+
+### Build HTML inside Docker
+
+```bash
+docker compose exec web sphinx-build -b html docs docs/_build
+```
+
+If the image was built before Sphinx was added to `requirements.txt`, rebuild the image or run `pip install -r requirements.txt` inside the container once.
+
+### Configuration notes
+
+- `docs/conf.py` sets `DJANGO_SETTINGS_MODULE` and calls `django.setup()` so **autodoc** can import project code. Placeholder PostgreSQL env vars are set when missing so the settings module loads during a doc build without a real database.
+- API modules are pulled in via `docs/reference.rst` (`.. automodule:: ...`).
+
+---
+
+## Comment and docstring style
+
+All **documentation strings** (module, class, function, and important methods) should be written in **English** and follow the **Google Python Style Guide** for docstrings, as interpreted by Napoleon (see [Google style examples](https://google.github.io/styleguide/pyguide.html#38-comments-and-docstrings)).
+
+### Conventions
+
+1. **Module docstring** — First statement in the file: one or two sentences on what the module is for.
+2. **Public APIs** — Document views, forms, management commands, consumers, and non-trivial helpers with a clear summary line and, when useful, **`Args`**, **`Returns`**, **`Raises`** sections.
+3. **Django models** — Summarize behavior in the class docstring. Prefer **`help_text`** on fields for UI-oriented detail. Avoid listing every model field again under an **`Attributes:`** block **and** expecting autodoc to list the same fields: that duplicates entries in Sphinx. Use **`Attributes:`** only for non-ORM descriptors that are not already emitted as model fields.
+4. **Privacy** — Leading underscore for internal helpers; add a short docstring when the logic is not obvious from the name alone.
+5. **User-facing UI copy** — Template strings and messages may stay in the product language (e.g. Polish); **code comments and docstrings** stay in **English** for consistency and tooling.
+
+When you add or change public Python APIs, update docstrings in the same change so `sphinx-build` stays accurate.
+
+---
+
 # Database Seeding Guide
 
 This project provides modular seeders and a dedicated demo command for realistic onboarding data.

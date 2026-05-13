@@ -1,3 +1,5 @@
+"""Django forms backing HR workflows and shared Bootstrap widget helpers."""
+
 from django import forms
 from django.contrib.auth import get_user_model
 from django.db.models import Q
@@ -9,20 +11,28 @@ CustomUser = get_user_model()
 
 
 def apply_bootstrap_control_widgets(form):
-    """Add Bootstrap form-control class to all fields on auth-style forms."""
+    """Apply Bootstrap ``form-control`` CSS class to every field widget.
+
+    Args:
+        form: Any ``django.forms.BaseForm`` instance (mutated in place).
+    """
     for field in form.fields.values():
         field.widget.attrs.setdefault("class", "form-control")
 
 
 def mentor_student_roles_queryset():
-    """Roles that HR may assign: Mentor and Student (seed names, case-insensitive)."""
+    """Return roles HR may assign (mentor/student seed names).
+
+    Returns:
+        QuerySet: Filtered ``Roles`` queryset ordered by name.
+    """
     return Roles.objects.filter(
         Q(name__iexact="Mentor") | Q(name__iexact="Student")
     ).order_by("name")
 
 
 class HrAddEmployeeForm(forms.Form):
-    """Create a new employee as Mentor or Student (Polish labels in Meta/widgets)."""
+    """Collect data required to provision a mentor or student account."""
 
     email = forms.EmailField(
         label="Adres e-mail",
@@ -74,7 +84,7 @@ class HrAddEmployeeForm(forms.Form):
 
 
 class HrChangeRoleForm(forms.Form):
-    """Switch employee role between Mentor and Student."""
+    """POST payload for switching between mentor and student roles."""
 
     role = forms.ModelChoiceField(
         label="Nowa rola",
@@ -85,7 +95,7 @@ class HrChangeRoleForm(forms.Form):
 
 
 class HrChangeEmailForm(forms.Form):
-    """Update employee login email from the HR panel (Polish labels)."""
+    """Validate uniqueness when editing the login email from HR tools."""
 
     email = forms.EmailField(
         label="Adres e-mail",
@@ -112,7 +122,7 @@ class HrChangeEmailForm(forms.Form):
 
 
 class HrChangeMentorForm(forms.Form):
-    """Update assigned mentor for an existing student account."""
+    """Select a mentor for a student while preserving HR validation rules."""
 
     mentor = forms.ModelChoiceField(
         label="Mentor",
@@ -146,7 +156,7 @@ class HrChangeMentorForm(forms.Form):
 
 
 class HrDbExportForm(forms.Form):
-    """Choose a serializer format for full database export."""
+    """Configure serializer-backed exports triggered from the HR dashboard."""
 
     FORMAT_CHOICES = (
         ("json", "JSON (.json)"),
@@ -230,7 +240,7 @@ class HrDbExportForm(forms.Form):
 
 
 class HrDbImportForm(forms.Form):
-    """Upload fixture-like database dump accepted by loaddata."""
+    """Upload a Django fixture file for HR-driven database merges."""
 
     data_file = forms.FileField(
         label="Plik kopii danych",

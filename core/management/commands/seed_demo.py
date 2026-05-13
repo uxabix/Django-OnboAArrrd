@@ -1,3 +1,5 @@
+"""Load a curated demo dataset suitable for screenshots and walkthroughs."""
+
 from importlib import import_module
 
 from django.contrib.auth.models import Group
@@ -24,6 +26,8 @@ DEMO_ORDER = [
 
 
 class Command(BaseCommand):
+    """Seed demo fixtures using the same modules as :mod:`core.management.commands.seed`."""
+
     help = "Seed a compact, realistic demo dataset (around 10 users)."
 
     def add_arguments(self, parser):
@@ -34,6 +38,12 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
+        """Optionally reset the database before invoking demo seeders.
+
+        Args:
+            *args: Unused positional parameters.
+            **options: Parsed CLI flags such as ``reset_first``.
+        """
         if options["reset_first"]:
             from django.core.management import call_command
 

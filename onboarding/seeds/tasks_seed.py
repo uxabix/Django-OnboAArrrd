@@ -1,3 +1,5 @@
+"""Seed task types, catalog tasks, and link them to competency paths."""
+
 from onboarding.models import Task_types, Tasks, Competency_paths
 
 def run(count=6, group=None):

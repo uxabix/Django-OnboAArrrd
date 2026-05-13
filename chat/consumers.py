@@ -1,3 +1,5 @@
+"""Django Channels consumer bridging websocket chat to persistent messages."""
+
 import json
 from urllib.parse import parse_qs
 
@@ -12,11 +14,15 @@ User = get_user_model()
 
 
 def _display_name(user):
+    """Format ``user`` similar to :func:`chat.views._display_name`."""
+
     full = f"{(user.first_name or '').strip()} {(user.last_name or '').strip()}".strip()
     return full or user.email
 
 
 class ChatConsumer(AsyncWebsocketConsumer):
+    """Websocket endpoint mirroring HTTP chat scopes for live updates."""
+
     async def connect(self):
         self.user = self.scope["user"]
         if self.user.is_anonymous:
@@ -69,12 +75,19 @@ class ChatConsumer(AsyncWebsocketConsumer):
         await self.accept()
 
     async def disconnect(self, close_code):
+        """Leave the channel layer group when the socket closes."""
+
         await self.channel_layer.group_discard(
             self.room_group_name,
             self.channel_name
         )
 
     async def receive(self, text_data):
+        """Persist inbound JSON messages and broadcast them to the room group.
+
+        Args:
+            text_data: JSON string containing a ``message`` field.
+        """
         data = json.loads(text_data)
         message = data.get("message", "").strip()
         if not message:
@@ -103,6 +116,8 @@ class ChatConsumer(AsyncWebsocketConsumer):
         )
 
     async def chat_message(self, event):
+        """Fan-out handler invoked by ``channel_layer.group_send``."""
+
         await self.send(text_data=json.dumps({
             "id": event.get("id"),
             "message": event["message"],

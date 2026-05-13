@@ -1,3 +1,9 @@
+"""Django settings module for the OnboAArrrd project.
+
+Environment variables are loaded from ``.env`` via ``django-environ``. Database
+credentials and security flags must be provided for non-local deployments.
+"""
+
 from pathlib import Path
 import environ
 import os

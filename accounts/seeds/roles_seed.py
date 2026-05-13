@@ -1,3 +1,5 @@
+"""Create baseline ``Roles`` rows for local development."""
+
 from accounts.models import Roles
 
 def run(count=10, group=None):
