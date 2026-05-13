@@ -1,0 +1,17 @@
+[run]
+branch = True
+source =
+    accounts
+    chat
+    core
+    onboarding
+    OnboAArrrd
+omit =
+    */migrations/*
+    */tests/*
+    */__pycache__/*
+    manage.py
+
+[report]
+show_missing = True
+skip_covered = False
