@@ -1,3 +1,5 @@
+"""Create ``User_tasks`` rows with deadlines for seeded users."""
+
 from datetime import date, timedelta
 from onboarding.models import User_tasks, Tasks
 from django.contrib.auth import get_user_model

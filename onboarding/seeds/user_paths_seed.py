@@ -1,3 +1,5 @@
+"""Assign competency paths to demo users for dashboard scenarios."""
+
 from onboarding.models import User_paths, Competency_paths
 from django.contrib.auth import get_user_model
 

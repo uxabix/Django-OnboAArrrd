@@ -1,3 +1,5 @@
+"""HTTP URLConf for chat pages and polling endpoints."""
+
 from django.urls import path
 from . import views
 

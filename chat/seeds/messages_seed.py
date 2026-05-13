@@ -1,3 +1,5 @@
+"""Create randomized chat transcripts between seeded users."""
+
 import random
 from datetime import timedelta
 from django.utils import timezone

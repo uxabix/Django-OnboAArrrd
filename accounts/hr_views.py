@@ -1,3 +1,10 @@
+"""Human-resources dashboard views for user administration.
+
+Provides paginated employee lists, import/export, activation, mentor assignment,
+role changes, and secure temporary password issuance integrated with
+``CustomUser`` password lifecycle fields.
+"""
+
 import secrets
 from io import StringIO
 from urllib.parse import urlencode
@@ -58,26 +65,52 @@ _DB_SERIALIZER_EXTENSIONS = {
 
 
 def _generate_hr_temporary_password():
-    """Cryptographically strong one-time password for HR handoff (stored as plain text per product rules)."""
+    """Create a URL-safe random string for HR handoff.
+
+    Returns:
+        str: Cryptographically strong token stored as plaintext per product rules.
+    """
     return secrets.token_urlsafe(16)
 
 
 def _clear_mentor_links(user):
-    """Detach mentees when mentor is demoted or terminated."""
+    """Remove ``mentor`` references pointing at the given user.
+
+    Args:
+        user: ``CustomUser`` being demoted or deactivated.
+    """
     CustomUserModel.objects.filter(mentor=user).update(mentor=None)
 
 
 def _role_name_lower(role):
+    """Normalize role name for comparisons.
+
+    Args:
+        role: ``Roles`` instance or ``None``.
+
+    Returns:
+        str: Lowercased stripped name, or empty string when missing.
+    """
     if not role or not role.name:
         return ""
     return role.name.strip().lower()
 
 
 def _hr_can_manage_actor(actor, target):
-    """
-    Terminate, reactivate, role change, HR temporary password reset for another user.
-    Superuser: any user except self. Administrator role: any non-superuser except self.
-    Plain HR: not superuser, not HR/Admin roles, not self.
+    """Return whether ``actor`` may terminate, reactivate, or reset ``target``.
+
+    Rules:
+        * Nobody may target themselves.
+        * Non-superusers cannot touch superusers.
+        * Superusers and Administrator-role users may manage most accounts.
+        * Plain HR cannot manage other HR or admin-class roles.
+
+    Args:
+        actor: Acting ``CustomUser`` (typically ``request.user``).
+        target: Subject ``CustomUser``.
+
+    Returns:
+        bool: ``True`` when the action is permitted.
     """
     if actor.pk == target.pk:
         return False
@@ -94,9 +127,16 @@ def _hr_can_manage_actor(actor, target):
 
 
 def _hr_can_change_role_for_target(actor, target):
-    """
-    Role change permission.
-    Superuser / Administrator can also change own role from HR panel.
+    """Whether ``actor`` may change ``target``'s ``Roles`` assignment.
+
+    Superusers and administrators may also edit their own role from the panel.
+
+    Args:
+        actor: Acting user.
+        target: Subject user.
+
+    Returns:
+        bool: ``True`` when role changes are allowed.
     """
     if actor.pk == target.pk:
         return actor.is_superuser or user_is_administrator_role(actor)
@@ -104,7 +144,15 @@ def _hr_can_change_role_for_target(actor, target):
 
 
 def _redirect_hr_dashboard(request):
-    """After POST, return to the list with the same filters (internal query only)."""
+    """Redirect back to the HR list preserving filter query parameters.
+
+    Args:
+        request: ``HttpRequest`` whose ``POST`` may include hidden fields
+            mirroring the current list state.
+
+    Returns:
+        HttpResponseRedirect: Dashboard URL with encoded query string.
+    """
     params = {}
     for key in _HR_LIST_PARAMS:
         v = (request.POST.get(key) or "").strip()
@@ -117,7 +165,15 @@ def _redirect_hr_dashboard(request):
 
 
 def _parse_hr_list_params(request_get):
-    """Read and sanitize GET parameters for the employee list."""
+    """Parse and sanitize GET parameters used by the employee table.
+
+    Args:
+        request_get: ``request.GET``-like mapping.
+
+    Returns:
+        dict: Keys ``q``, ``filter_role``, ``role_id``, ``created_from``,
+        ``created_to``, ``sort``, ``page`` with validated defaults.
+    """
     q = (request_get.get("q") or "").strip()[:200]
     role_raw = (request_get.get("filter_role") or "").strip()
     role_id = None
@@ -143,7 +199,15 @@ def _parse_hr_list_params(request_get):
 
 
 def _apply_hr_list_filters(qs, p):
-    """Apply search, role, and created_at range filters."""
+    """Apply text, role, and creation-date filters to a user queryset.
+
+    Args:
+        qs: Base ``QuerySet`` of users.
+        p: Dict produced by ``_parse_hr_list_params``.
+
+    Returns:
+        QuerySet: Filtered queryset.
+    """
     if p["q"]:
         term = p["q"]
         qs = qs.filter(
@@ -163,7 +227,15 @@ def _apply_hr_list_filters(qs, p):
 
 
 def _preservation_dict(p, page_number):
-    """Hidden-field payload so POST actions keep list state."""
+    """Build hidden-field values so POST actions keep list pagination and filters.
+
+    Args:
+        p: Parsed list parameter dict.
+        page_number: Current 1-based page index.
+
+    Returns:
+        dict: Field names and string values for templates.
+    """
     out = {
         "q": p["q"],
         "filter_role": p["filter_role"],
@@ -176,7 +248,14 @@ def _preservation_dict(p, page_number):
 
 
 def _querystring_except_page(request_get):
-    """Build query string for pagination links (exclude page)."""
+    """Serialize current filters without the ``page`` key for pager links.
+
+    Args:
+        request_get: ``request.GET``-like mapping.
+
+    Returns:
+        str: URL-encoded query string.
+    """
     mutable = request_get.copy()
     if "page" in mutable:
         del mutable["page"]
@@ -185,7 +264,14 @@ def _querystring_except_page(request_get):
 
 @hr_required
 def hr_dashboard(request):
-    """Paginated employee list with search, filters, and sort."""
+    """Render the paginated HR employee list with inline management actions.
+
+    Args:
+        request: Authenticated HR-eligible ``HttpRequest``.
+
+    Returns:
+        HttpResponse: ``accounts/hr_dashboard.html`` with forms and metadata.
+    """
     p = _parse_hr_list_params(request.GET)
     qs = CustomUserModel.objects.all().select_related("role", "mentor")
     qs = _apply_hr_list_filters(qs, p)
@@ -260,7 +346,11 @@ def hr_dashboard(request):
 @hr_required
 @require_http_methods(["POST"])
 def hr_export_database(request):
-    """Export full DB data using Django serializers."""
+    """Stream a database export using Django's serialization framework.
+
+    Returns:
+        HttpResponse: File download on success or redirect with flash message.
+    """
     form = HrDbExportForm(request.POST)
     if not form.is_valid():
         messages.error(request, "Nieprawidłowy format eksportu.")
@@ -296,7 +386,11 @@ def hr_export_database(request):
 @hr_required
 @require_http_methods(["POST"])
 def hr_import_database(request):
-    """Import DB data from supported dump formats."""
+    """Import serialized fixtures with optional overwrite semantics.
+
+    Returns:
+        HttpResponse: Redirect with success or error flash message.
+    """
     form = HrDbImportForm(request.POST, request.FILES)
     if not form.is_valid():
         messages.error(request, "Nieprawidłowy plik importu.")
@@ -336,10 +430,29 @@ def hr_import_database(request):
 
 
 def _serialize_objects(export_format, objects):
+    """Serialize model instances to the requested dump format.
+
+    Args:
+        export_format: ``json``, ``xml``, or ``yaml`` accepted by Django.
+        objects: Iterable of model instances.
+
+    Returns:
+        str: Serialized payload text.
+    """
     return serializers.serialize(export_format, objects, indent=2)
 
 
 def _export_users_only(export_format, only_selected, user_ids):
+    """Export roles plus users (and mentors of selected users when filtered).
+
+    Args:
+        export_format: Serializer format name.
+        only_selected: When ``True``, restrict to ``user_ids``.
+        user_ids: Primary keys referenced by the export form.
+
+    Returns:
+        str: Serialized text blob.
+    """
     users_qs = CustomUserModel.objects.select_related("role", "mentor").all()
     if only_selected:
         users_qs = users_qs.filter(pk__in=user_ids)
@@ -353,6 +466,17 @@ def _export_users_only(export_format, only_selected, user_ids):
 
 
 def _export_users_mentors_tasks(export_format, only_selected, user_ids, task_ids):
+    """Export a graph of users, competency paths, tasks, and status history.
+
+    Args:
+        export_format: Serializer format name.
+        only_selected: Whether to restrict to provided id lists.
+        user_ids: User primary keys for selective export.
+        task_ids: Task primary keys for selective export.
+
+    Returns:
+        str: Serialized text blob covering related models.
+    """
     TasksModel = _get_model("onboarding.Tasks")
     UserTasksModel = _get_model("onboarding.User_tasks")
     TaskStatusModel = _get_model("onboarding.Task_status")
@@ -398,11 +522,29 @@ def _export_users_mentors_tasks(export_format, only_selected, user_ids, task_ids
 
 
 def _get_model(model_label):
+    """Resolve an ``app_label.ModelName`` string via Django's app registry.
+
+    Args:
+        model_label: Dotted model identifier.
+
+    Returns:
+        type: Concrete model class.
+    """
     app_label, model_name = model_label.split(".")
     return apps.get_model(app_label, model_name)
 
 
 def _import_payload(payload, fmt, overwrite_existing):
+    """Deserialize and persist objects inside a single atomic transaction.
+
+    Args:
+        payload: UTF-8 text accepted by ``serializers.deserialize``.
+        fmt: Serializer format name.
+        overwrite_existing: When ``False``, skip rows whose PK already exists.
+
+    Returns:
+        tuple[int, int, int]: Counts ``(created, updated, skipped)``.
+    """
     created = 0
     updated = 0
     skipped = 0
@@ -426,7 +568,11 @@ def _import_payload(payload, fmt, overwrite_existing):
 @hr_required
 @require_http_methods(["GET", "POST"])
 def hr_add_employee(request):
-    """Create a new Mentor or Student account with a random password (shown in HR panel)."""
+    """Create a mentor or student with an HR-issued temporary password.
+
+    Returns:
+        HttpResponse: Form on ``GET`` or redirect to dashboard after success.
+    """
     if request.method == "POST":
         form = HrAddEmployeeForm(request.POST)
         if form.is_valid():
@@ -461,7 +607,15 @@ def hr_add_employee(request):
 @hr_required
 @require_http_methods(["POST"])
 def hr_terminate_employee(request, user_id):
-    """Soft-terminate: deactivate account and clear mentee links."""
+    """Deactivate a user, clear mentee links, and drop stored HR passwords.
+
+    Args:
+        request: Authenticated HR request with POSTed preservation fields.
+        user_id: Primary key of the employee to terminate.
+
+    Returns:
+        HttpResponse: Redirect to the filtered dashboard list.
+    """
     target = get_object_or_404(CustomUserModel, pk=user_id)
     if not _hr_can_manage_actor(request.user, target):
         messages.error(request, "Nie możesz zwolnić tego użytkownika.")
@@ -479,7 +633,15 @@ def hr_terminate_employee(request, user_id):
 @hr_required
 @require_http_methods(["POST"])
 def hr_reactivate_employee(request, user_id):
-    """Re-enable a previously deactivated account."""
+    """Re-enable a previously deactivated employee account.
+
+    Args:
+        request: Authenticated HR request.
+        user_id: Target user's primary key.
+
+    Returns:
+        HttpResponse: Redirect back to the dashboard list.
+    """
     target = get_object_or_404(CustomUserModel, pk=user_id)
     if not _hr_can_manage_actor(request.user, target):
         messages.error(request, "Nie możesz ponownie aktywować tego użytkownika.")
@@ -494,7 +656,15 @@ def hr_reactivate_employee(request, user_id):
 @hr_required
 @require_http_methods(["POST"])
 def hr_change_role(request, user_id):
-    """Set role to Mentor or Student only; demoting a mentor clears mentees."""
+    """Assign a new mentor/student role, clearing mentees when demoting mentors.
+
+    Args:
+        request: POST with ``HrChangeRoleForm`` fields plus hidden list state.
+        user_id: Target user's primary key.
+
+    Returns:
+        HttpResponse: Redirect to the dashboard preserving filters.
+    """
     target = get_object_or_404(CustomUserModel, pk=user_id)
     if not _hr_can_change_role_for_target(request.user, target):
         messages.error(request, "Nie możesz zmienić roli tego użytkownika.")
@@ -523,7 +693,15 @@ def hr_change_role(request, user_id):
 @hr_required
 @require_http_methods(["POST"])
 def hr_change_email(request, user_id):
-    """Update employee email (USERNAME_FIELD); same access rules as role change."""
+    """Update a user's login email with uniqueness validation.
+
+    Args:
+        request: POSTed ``HrChangeEmailForm`` data.
+        user_id: Target user's primary key.
+
+    Returns:
+        HttpResponse: Redirect with flash messaging.
+    """
     target = get_object_or_404(CustomUserModel, pk=user_id)
     if not _hr_can_manage_actor(request.user, target):
         messages.error(request, "Nie możesz zmienić adresu e-mail tego użytkownika.")
@@ -548,7 +726,15 @@ def hr_change_email(request, user_id):
 @hr_required
 @require_http_methods(["POST"])
 def hr_change_mentor(request, user_id):
-    """Update student's assigned mentor from HR panel."""
+    """Assign or clear a student's mentor from the HR panel.
+
+    Args:
+        request: POST body with ``HrChangeMentorForm`` fields.
+        user_id: Student primary key.
+
+    Returns:
+        HttpResponse: Redirect with validation or success messaging.
+    """
     target = get_object_or_404(CustomUserModel, pk=user_id)
     if not _hr_can_manage_actor(request.user, target):
         messages.error(request, "Nie możesz zmienić mentora tego użytkownika.")
@@ -578,7 +764,15 @@ def hr_change_mentor(request, user_id):
 @hr_required
 @require_http_methods(["POST"])
 def hr_reset_user_password(request, user_id):
-    """Issue a new temporary password; user must set their own on next login."""
+    """Issue a new temporary password and force change on next login.
+
+    Args:
+        request: Authenticated HR request.
+        user_id: Target user's primary key.
+
+    Returns:
+        HttpResponse: Redirect with plaintext password echoed once.
+    """
     target = get_object_or_404(CustomUserModel, pk=user_id)
     if not _hr_can_manage_actor(request.user, target):
         messages.error(request, "Nie możesz zresetować hasła temu użytkownikowi.")
@@ -600,7 +794,11 @@ def hr_reset_user_password(request, user_id):
 @hr_required
 @require_http_methods(["GET", "POST"])
 def hr_change_own_password(request):
-    """HR panel user changes their own password (current password required); no temporary password flow."""
+    """Allow HR staff to rotate their own password without the temporary-password flow.
+
+    Returns:
+        HttpResponse: ``PasswordChangeForm`` template or redirect on success.
+    """
     user = request.user
     if request.method == "POST":
         form = PasswordChangeForm(user, request.POST)

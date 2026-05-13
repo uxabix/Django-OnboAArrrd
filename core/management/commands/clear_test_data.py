@@ -1,3 +1,5 @@
+"""Remove synthetic users and onboarding/chat data created by seeders."""
+
 from django.core.management.base import BaseCommand
 from django.contrib.auth.models import Group
 from django.db import transaction
@@ -30,6 +32,8 @@ DEMO_TASK_TITLES = [
 DEMO_BADGE_NAMES = ["Fast Starter", "Quality Keeper", "Reliable Teammate", "Mentor Favorite"]
 
 class Command(BaseCommand):
+    """Delete demo users (and optionally their linked graph) in bulk."""
+
     help = "Delete seeded demo/legacy test data (users + onboarding/chat artifacts)."
 
     def add_arguments(self, parser):
@@ -40,6 +44,12 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
+        """Run cascading deletes scoped to seeded email domains and titles.
+
+        Args:
+            *args: Unused positional parameters.
+            **options: Supports ``keep_users`` to retain accounts while wiping artifacts.
+        """
         keep_users = options["keep_users"]
         group_name = "TestUsers"
         group = Group.objects.filter(name=group_name).first()

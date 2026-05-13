@@ -1,3 +1,5 @@
+"""Insert default onboarding badges used by gamification views."""
+
 from onboarding.models import Badges
 
 def run(count=10, group=None):

@@ -1,3 +1,5 @@
+"""Generate lightweight report metadata for demo accounts."""
+
 import random
 from onboarding.models import Reports
 from django.contrib.auth import get_user_model

@@ -1,3 +1,5 @@
+"""Django admin registrations for onboarding models."""
+
 from django.contrib import admin
 from .models import (
     Badges,

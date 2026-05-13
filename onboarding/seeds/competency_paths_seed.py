@@ -1,3 +1,5 @@
+"""Generate sample competency paths for seeded tasks."""
+
 from onboarding.models import Competency_paths
 
 def run(count=10, group=None):

@@ -27,3 +27,7 @@ media/
 *.spec
 TODO_ranking.md
 TODO.md
+
+# Sphinx
+docs/_build/
+docs/**/.doctrees/

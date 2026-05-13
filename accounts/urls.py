@@ -1,3 +1,5 @@
+"""URL routes for public account pages and the HR dashboard."""
+
 from django.urls import path
 
 from . import hr_views, views

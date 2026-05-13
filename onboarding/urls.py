@@ -1,3 +1,5 @@
+"""URL routes for onboarding student and mentor experiences."""
+
 from django.urls import path
 
 from .views import (

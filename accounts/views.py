@@ -1,3 +1,9 @@
+"""HTTP views for the public site area of the ``accounts`` app.
+
+Includes the home page, authenticated landing, user profiles, mentor ranking,
+password-first-change flow, and lightweight JSON search helpers.
+"""
+
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import update_session_auth_hash
@@ -14,11 +20,27 @@ from .models import CustomUser
 
 
 def home(request):
+    """Render the anonymous marketing / entry landing page.
+
+    Args:
+        request: Incoming ``HttpRequest``.
+
+    Returns:
+        HttpResponse: Rendered ``accounts/home.html``.
+    """
     return render(request, "accounts/home.html")
 
 
 @login_required
 def logged(request):
+    """Post-login hub with a flag indicating HR panel availability.
+
+    Args:
+        request: Authenticated ``HttpRequest``.
+
+    Returns:
+        HttpResponse: Rendered ``accounts/logged.html``.
+    """
     return render(
         request,
         "accounts/logged.html",
@@ -28,6 +50,20 @@ def logged(request):
 
 @login_required
 def user_profile(request, user_id=None):
+    """Show onboarding stats, mentor/mentee lists, and optional user search.
+
+    When ``user_id`` is omitted the current user's profile is shown. Mentors
+    may open mentee profiles; search narrows the user directory for power users.
+
+    Args:
+        request: Authenticated ``HttpRequest``; accepts ``GET`` query
+            ``user_search`` for directory lookup.
+        user_id: Optional primary key of another ``CustomUser`` to display.
+
+    Returns:
+        HttpResponse: Rendered ``accounts/user_profile.html`` context with
+        aggregates for tasks, paths, badges, reports, and grades.
+    """
     profile_user = request.user if user_id is None else get_object_or_404(
         CustomUser.objects.select_related("role", "mentor"),
         pk=user_id,
@@ -120,6 +156,15 @@ def user_profile(request, user_id=None):
 @login_required
 @require_GET
 def user_search_suggest(request):
+    """Return up to eight JSON user suggestions for autocomplete widgets.
+
+    Args:
+        request: Authenticated ``HttpRequest`` with ``GET`` parameter ``q``
+            (minimum length two characters).
+
+    Returns:
+        JsonResponse: Payload ``{"results": [{id, name, email, role}, ...]}``.
+    """
     q = (request.GET.get("q") or "").strip()
     if len(q) < 2:
         return JsonResponse({"results": []})
@@ -150,6 +195,14 @@ def user_search_suggest(request):
 
 @login_required
 def mentor_ranking(request):
+    """Paginated leaderboard of users whose role name is ``Mentor`` by stars.
+
+    Args:
+        request: Authenticated ``HttpRequest``; optional ``GET`` ``page``.
+
+    Returns:
+        HttpResponse: Rendered ``accounts/mentor_ranking.html``.
+    """
     from django.core.paginator import Paginator
     mentors = CustomUser.objects.filter(
     role__name='Mentor'
@@ -162,7 +215,18 @@ def mentor_ranking(request):
 
 @login_required
 def force_first_password_change(request):
-    """Block app usage until the user replaces an HR-issued temporary password."""
+    """Block normal navigation until the user replaces an HR temporary password.
+
+    Redirects authenticated users who already chose their own password to the
+    default post-login URL. Otherwise shows ``SetPasswordForm`` on ``GET`` and
+    processes it on ``POST``, clearing stored HR plaintext credentials.
+
+    Args:
+        request: Authenticated ``HttpRequest``.
+
+    Returns:
+        HttpResponse: Rendered form or redirect after success.
+    """
     user = request.user
     if getattr(user, "password_is_user_chosen", True):
         return redirect(settings.LOGIN_REDIRECT_URL or "/accounts/logged/")

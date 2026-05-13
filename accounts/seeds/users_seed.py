@@ -1,3 +1,5 @@
+"""Provision demo users, mentors, students, and HR accounts for testing."""
+
 from accounts.models import CustomUser, Roles
 from django.contrib.auth.models import Group
 

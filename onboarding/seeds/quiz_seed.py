@@ -1,3 +1,5 @@
+"""Attach randomized quiz graphs to quiz-type tasks."""
+
 import random
 
 from onboarding.models import Tasks, Quizzes, Quiz_question, Quiz_answers

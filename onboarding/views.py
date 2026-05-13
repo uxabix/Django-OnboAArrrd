@@ -1,3 +1,10 @@
+"""Onboarding views for students and mentors.
+
+Student flows cover assigned tasks, competency paths, calendars, and task
+submission. Mentor flows manage mentee assignments, path bundling, grading
+actions, and JSON helpers used by mentor tooling templates.
+"""
+
 import calendar
 import json
 from datetime import timedelta
@@ -66,8 +73,17 @@ TASK_SORT_OPTIONS = {
 
 
 def _build_user_tasks_with_state(user):
-    """Pobiera wszystkie zadania użytkownika i wzbogaca je o stan terminu.
-    Zwraca listę dictów oraz statystyki."""
+    """Load a user's assigned tasks with derived deadline metadata.
+
+    Args:
+        user: ``CustomUser`` whose ``User_tasks`` rows should be summarized.
+
+    Returns:
+        tuple: ``(enriched_rows, stats, reminders, today)`` where ``enriched_rows``
+        is a list of dicts with keys ``user_task``, ``state``, ``current_status``,
+        ``days_until_deadline``, ``submission_date``; ``stats`` counts buckets;
+        ``reminders`` lists approaching items; ``today`` is the current date.
+    """
     qs = (
         User_tasks.objects.filter(user_id=user)
         .select_related('task_id', 'task_id__path', 'assigned_by')
@@ -112,6 +128,15 @@ def _build_user_tasks_with_state(user):
 
 @login_required
 def user_tasks_list(request):
+    """Paginated task inbox with filters, sorting, and optional path grouping.
+
+    Args:
+        request: Authenticated ``HttpRequest`` supporting ``GET`` parameters
+            ``filter``, ``path_filter``, ``sort``, ``group_by_path``, ``page``.
+
+    Returns:
+        HttpResponse: Rendered ``onboarding/user_tasks_list.html``.
+    """
     enriched, stats, reminders, today = _build_user_tasks_with_state(request.user)
 
     filter_param = request.GET.get('filter', 'active')
@@ -214,6 +239,16 @@ def user_tasks_list(request):
 
 @login_required
 def user_tasks_calendar(request, year=None, month=None):
+    """Monthly calendar of deadlines with optional mentee overlays for mentors.
+
+    Args:
+        request: Authenticated ``HttpRequest`` with numerous filter query params.
+        year: Optional calendar year; defaults to the current year.
+        month: Optional calendar month; defaults to the current month.
+
+    Returns:
+        HttpResponse: Rendered ``onboarding/user_tasks_calendar.html``.
+    """
     today = timezone.now().date()
     try:
         year = int(year) if year else today.year
@@ -422,7 +457,15 @@ def user_tasks_calendar(request, year=None, month=None):
 
 @login_required
 def user_submit_task(request, user_task_id):
-    """Pozwala studentowi oznaczyć swoje zadanie jako wysłane do weryfikacji."""
+    """Mark a student's task as submitted for mentor verification.
+
+    Args:
+        request: Authenticated ``HttpRequest``; must be ``POST`` to apply.
+        user_task_id: Primary key of the ``User_tasks`` row owned by the user.
+
+    Returns:
+        HttpResponse: Redirect to the task detail page with flash messaging.
+    """
     user_task = get_object_or_404(User_tasks, pk=user_task_id, user_id=request.user)
 
     if request.method != 'POST':
@@ -450,13 +493,25 @@ def user_submit_task(request, user_task_id):
 
 
 def user_paths_list(request):
-    # Pobiera tylko ścieżki zalogowanego użytkownika
+    """List competency paths linked to the current session user.
+
+    Args:
+        request: ``HttpRequest``; unauthenticated users see an empty list.
+
+    Returns:
+        HttpResponse: Rendered ``onboarding/user_paths_list.html``.
+    """
     paths = request.user.user_paths.all() if request.user.is_authenticated else []
     return render(request, 'onboarding/user_paths_list.html', {'paths': paths})
 
 
 @login_required
 def user_competency_paths_with_tasks(request):
+    """Show each assigned path with nested tasks, statuses, and sorting controls.
+
+    Returns:
+        HttpResponse: Rendered ``onboarding/user_competency_paths_with_tasks.html``.
+    """
     path_sort = request.GET.get('path_sort', '-assigned_at')
     task_sort = request.GET.get('task_sort', 'path_order')
     show_completed = request.GET.get('show_completed', '0') == '1'
@@ -562,6 +617,15 @@ def user_competency_paths_with_tasks(request):
 
 @login_required
 def user_path_detail(request, user_path_id):
+    """Drill into a single ``User_paths`` assignment with ordered tasks.
+
+    Args:
+        request: Authenticated ``HttpRequest``.
+        user_path_id: ``User_paths`` primary key scoped to the current user.
+
+    Returns:
+        HttpResponse: Rendered ``onboarding/user_path_detail.html``.
+    """
     user_path = get_object_or_404(
         User_paths.objects.select_related('path', 'assigned_by'),
         user_path_id=user_path_id,
@@ -612,6 +676,15 @@ def user_path_detail(request, user_path_id):
 
 @login_required
 def user_task_detail(request, user_task_id):
+    """Display a task, its deadline helpers, and status change history.
+
+    Args:
+        request: Authenticated ``HttpRequest``.
+        user_task_id: ``User_tasks`` primary key owned by the user.
+
+    Returns:
+        HttpResponse: Rendered ``onboarding/user_task_detail.html``.
+    """
     user_task = get_object_or_404(
         User_tasks.objects.select_related('task_id', 'task_id__path', 'assigned_by').prefetch_related('statuses'),
         pk=user_task_id,
@@ -630,6 +703,15 @@ def user_task_detail(request, user_task_id):
 
 @login_required
 def mentor_task_management(request, student_id=None):
+    """Mentor console for reviewing a mentee's tasks and assigned paths.
+
+    Args:
+        request: Authenticated mentor ``HttpRequest`` with filter/sort params.
+        student_id: Optional mentee primary key; defaults to the first mentee.
+
+    Returns:
+        HttpResponse: Mentor template or an explanatory exception page.
+    """
     mentor = request.user
 
     # Sprawdzenie, czy użytkownik jest mentorem
@@ -795,6 +877,15 @@ def mentor_task_management(request, student_id=None):
 
 @login_required
 def mentor_assign_task(request, student_id):
+    """Assign an existing catalog task to a mentee with a deadline.
+
+    Args:
+        request: Authenticated mentor ``HttpRequest``.
+        student_id: Mentee primary key belonging to ``request.user.mentees``.
+
+    Returns:
+        HttpResponse: Form template or redirect after successful creation.
+    """
     mentor = request.user
 
     # Sprawdzenie, czy użytkownik jest mentorem
@@ -831,6 +922,11 @@ def mentor_assign_task(request, student_id):
 
 @login_required
 def mentor_create_task(request):
+    """Create a reusable task definition in the shared catalog.
+
+    Returns:
+        HttpResponse: ``TaskForm`` template or redirect for mentors only.
+    """
     mentor = request.user
 
     # Sprawdzenie, czy użytkownik jest mentorem
@@ -852,6 +948,15 @@ def mentor_create_task(request):
 
 @login_required
 def mentor_edit_task(request, task_id):
+    """Update metadata for an existing ``Tasks`` row.
+
+    Args:
+        request: Authenticated mentor ``HttpRequest``.
+        task_id: ``Tasks`` primary key.
+
+    Returns:
+        HttpResponse: Edit form or redirect after save.
+    """
     mentor = request.user
 
     # Sprawdzenie, czy użytkownik jest mentorem
@@ -876,6 +981,15 @@ def mentor_edit_task(request, task_id):
 
 @login_required
 def mentor_delete_user_task(request, user_task_id):
+    """Confirm and delete a mentee assignment row.
+
+    Args:
+        request: Authenticated mentor ``HttpRequest``; deletion occurs on POST.
+        user_task_id: ``User_tasks`` primary key.
+
+    Returns:
+        HttpResponse: Confirmation template or redirect to mentee management.
+    """
     mentor = request.user
 
     # Sprawdzenie, czy użytkownik jest mentorem
@@ -896,6 +1010,15 @@ def mentor_delete_user_task(request, user_task_id):
 
 @login_required
 def mentor_assign_path(request, student_id):
+    """Assign a competency path and optional per-task deadlines to a mentee.
+
+    Args:
+        request: Authenticated mentor ``HttpRequest`` with JSON-ish POST data.
+        student_id: Mentee primary key.
+
+    Returns:
+        HttpResponse: Wizard template or redirect after atomic save.
+    """
     mentor = request.user
 
     # Sprawdzenie, czy użytkownik jest mentorem
@@ -975,6 +1098,15 @@ def mentor_assign_path(request, student_id):
 
 @login_required
 def mentor_path_tasks_json(request, path_id):
+    """JSON helper listing tasks that belong to a competency path.
+
+    Args:
+        request: Authenticated mentor ``HttpRequest``.
+        path_id: ``Competency_paths`` primary key.
+
+    Returns:
+        JsonResponse: ``{"ok": bool, "tasks": [...]}`` payload.
+    """
     mentor = request.user
     if not mentor.is_mentor:
         return JsonResponse({'ok': False, 'error': 'Brak uprawnień.'}, status=403)
@@ -1002,6 +1134,15 @@ def mentor_path_tasks_json(request, path_id):
 
 @login_required
 def mentor_delete_user_path(request, user_path_id):
+    """Remove a mentee's ``User_paths`` assignment after confirmation.
+
+    Args:
+        request: Authenticated mentor ``HttpRequest``.
+        user_path_id: ``User_paths`` primary key.
+
+    Returns:
+        HttpResponse: Confirmation page or redirect.
+    """
     mentor = request.user
 
     # Sprawdzenie, czy użytkownik jest mentorem
@@ -1022,6 +1163,15 @@ def mentor_delete_user_path(request, user_path_id):
 
 @login_required
 def mentor_change_user_task_status(request, user_task_id):
+    """Append a new ``Task_status`` history row for a mentee assignment.
+
+    Args:
+        request: Authenticated mentor ``HttpRequest`` (POST-only mutation).
+        user_task_id: ``User_tasks`` row assigned by the acting mentor.
+
+    Returns:
+        HttpResponse: Redirect back to mentor management on success.
+    """
     mentor = request.user
 
     # Check role
@@ -1062,6 +1212,11 @@ def mentor_change_user_task_status(request, user_task_id):
 
 @login_required
 def mentor_create_path(request):
+    """Create a competency path and optionally attach existing catalog tasks.
+
+    Returns:
+        HttpResponse: Creation wizard for mentors or access denied page.
+    """
     mentor = request.user
 
     if not mentor.is_mentor:
@@ -1100,6 +1255,11 @@ def mentor_create_path(request):
 
 @login_required
 def mentor_create_task_inline(request):
+    """AJAX endpoint for quick task creation from mentor path builder UIs.
+
+    Returns:
+        JsonResponse: Serialized task metadata or validation errors.
+    """
     mentor = request.user
 
     if not mentor.is_mentor:

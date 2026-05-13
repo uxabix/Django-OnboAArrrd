@@ -4,15 +4,28 @@ from django.urls import reverse
 
 
 class ForceInitialPasswordChangeMiddleware:
-    """
-    Users created or reset by HR must set their own password before using the app.
-    Exempt only the forced-change view, logout, login, and static/media paths.
+    """Force password rotation for accounts with HR-issued temporary passwords.
+
+    Authenticated users whose ``password_is_user_chosen`` flag is ``False`` are
+    redirected to ``accounts:force_first_password_change`` unless the request
+    targets exempt authentication or static/media paths.
+
+    Attributes:
+        get_response: Django one-shot callable injected by the framework.
     """
 
     def __init__(self, get_response):
         self.get_response = get_response
 
     def __call__(self, request):
+        """Invoke the middleware for a single request/response cycle.
+
+        Args:
+            request: Current ``HttpRequest``.
+
+        Returns:
+            HttpResponse: Either a redirect or the downstream response.
+        """
         user = getattr(request, "user", None)
         if user is not None and user.is_authenticated:
             if not getattr(user, "password_is_user_chosen", True):
@@ -21,6 +34,14 @@ class ForceInitialPasswordChangeMiddleware:
         return self.get_response(request)
 
     def _is_exempt(self, request):
+        """Return ``True`` when password enforcement should not run.
+
+        Args:
+            request: Current ``HttpRequest``.
+
+        Returns:
+            bool: Whether the path is whitelisted.
+        """
         path = request.path
         try:
             if path == reverse("accounts:force_first_password_change"):

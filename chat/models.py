@@ -1,3 +1,5 @@
+"""Chat models storing threaded messages with optional task/path context."""
+
 from django.db import models
 from django.utils import timezone
 from django.contrib.auth import get_user_model
@@ -8,6 +10,8 @@ from onboarding.models import User_paths, User_tasks
 CustomUser = get_user_model()
 # Create your models here.
 class Messages(models.Model):
+    """Pairwise chat message optionally scoped to a task or competency path."""
+
     message_id = models.BigAutoField(primary_key=True)
     sender = models.ForeignKey(
         settings.AUTH_USER_MODEL,
