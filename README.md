@@ -96,7 +96,7 @@ All commands should be executed inside the web container. Examples:
 ```bash
 docker compose exec web python manage.py shell
 docker compose exec web python manage.py makemigrations
-docker compose exec web pytest -v 
+docker compose exec web pytest
 ```
 
 ### 7. Stop containers
@@ -153,6 +153,70 @@ All **documentation strings** (module, class, function, and important methods) s
 5. **User-facing UI copy** — Template strings and messages may stay in the product language (e.g. Polish); **code comments and docstrings** stay in **English** for consistency and tooling.
 
 When you add or change public Python APIs, update docstrings in the same change so `sphinx-build` stays accurate.
+
+---
+
+## Automated tests (pytest)
+
+Tests use **[pytest](https://docs.pytest.org/)** with **[pytest-django](https://pytest-django.readthedocs.io/)**. Configuration lives in `pytest.ini` at the repository root (`DJANGO_SETTINGS_MODULE`, discovery paths under `*/tests/`).
+
+### Running the suite
+
+Pytest loads **`OnboAArrrd.settings`**, which targets **PostgreSQL** (same as the app). Migrations include PostgreSQL-specific SQL, so the suite is oriented toward running **after** `migrate` against a real server (for example the `web` container).
+
+Inside Docker (recommended):
+
+```bash
+docker compose exec web pytest
+```
+
+Verbose output:
+
+```bash
+docker compose exec web pytest -vv
+```
+
+Locally, export the same `POSTGRES_*` and `SECRET_KEY` values as in `.env`, install dependencies, then:
+
+```bash
+pip install -r requirements.txt
+pytest
+```
+
+You can still use Django’s runner if needed:
+
+```bash
+docker compose exec web python manage.py test
+```
+
+### Coverage reports
+
+**[Coverage.py](https://coverage.readthedocs.io/)** is invoked via the **pytest-cov** plugin. Branch coverage and source roots are defined in `.coveragerc` (application packages under `accounts/`, `chat/`, `onboarding/`, `OnboAArrrd/`, `core/`; migrations and `*/tests/*` are omitted).
+
+Terminal summary with missing lines:
+
+```bash
+docker compose exec web pytest --cov --cov-config=.coveragerc --cov-report=term-missing
+```
+
+HTML report (opens in a browser as `htmlcov/index.html`):
+
+```bash
+docker compose exec web pytest --cov --cov-config=.coveragerc --cov-report=html
+```
+
+Generated coverage artifacts (`htmlcov/`, `.coverage`, `coverage.xml`) are ignored by Git.
+
+### Practices for new tests
+
+1. **Placement** — Keep tests beside their app in `<app>/tests/test_*.py` (already wired in `pytest.ini`).
+2. **Database** — Mark tests that hit the ORM or Django DB with `@pytest.mark.django_db`. Prefer fast, focused examples with minimal rows.
+3. **Pure logic** — When testing helpers that only need attribute access, use `types.SimpleNamespace` (see `accounts/tests/test_decorators.py`) instead of building full model graphs.
+4. **Naming** — Files `test_<area>.py`, functions `test_<behavior>()` so discovery stays predictable.
+5. **Documentation** — Use English module docstrings and short function docstrings in **Google style** (same tone as production code).
+6. **Assertions** — One logical behavior per test; use `pytest.raises` for expected errors and `parametrize` for compact scenario tables.
+7. **Stability** — Avoid coupling to wall-clock dates when possible; when testing deadlines, anchor to ``django.utils.timezone`` instead of bare ``datetime.today()``.
+8. **Database-backed tests** — Prefer `@pytest.mark.django_db` only when the behavior truly needs the ORM. Run them against PostgreSQL (Docker stack) because migrations are not SQLite-compatible.
 
 ---
 
@@ -279,6 +343,7 @@ Use `seed_demo` for a fast, realistic environment that showcases key flows (prof
 - Docker  
 - GitFlow  
 - Sphinx  
+- pytest, pytest-django, pytest-cov  
 
 ---
 

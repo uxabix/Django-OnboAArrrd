@@ -62,10 +62,6 @@ Accounts
    :members:
    :undoc-members:
 
-.. automodule:: accounts.tests
-   :members:
-   :undoc-members:
-
 Onboarding
 ----------
 
@@ -90,10 +86,6 @@ Onboarding
    :undoc-members:
 
 .. automodule:: onboarding.apps
-   :members:
-   :undoc-members:
-
-.. automodule:: onboarding.tests
    :members:
    :undoc-members:
 
@@ -125,10 +117,6 @@ Chat
    :undoc-members:
 
 .. automodule:: chat.apps
-   :members:
-   :undoc-members:
-
-.. automodule:: chat.tests
    :members:
    :undoc-members:
 
