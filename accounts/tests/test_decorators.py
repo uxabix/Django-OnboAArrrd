@@ -73,3 +73,46 @@ def test_user_can_access_hr_panel_respects_named_roles(role_name, expected):
 def test_user_can_access_hr_panel_denies_unauthenticated_users():
     user = _make_user("HR", authenticated=False, superuser=False)
     assert user_can_access_hr_panel(user) is False
+
+
+@pytest.mark.django_db
+def test_hr_required_allows_hr_user(hr_role):
+    from django.http import HttpResponse
+    from django.test import RequestFactory
+
+    from accounts.decorators import hr_required
+    from accounts.models import CustomUser
+
+    @hr_required
+    def sample_view(request):
+        return HttpResponse("allowed", status=200)
+
+    user = CustomUser.objects.create_user(
+        email="hr@example.com",
+        password="pass12345",
+        first_name="H",
+        last_name="R",
+        role=hr_role,
+    )
+    request = RequestFactory().get("/hr/")
+    request.user = user
+    response = sample_view(request)
+    assert response.status_code == 200
+    assert response.content == b"allowed"
+
+
+@pytest.mark.django_db
+def test_hr_required_denies_student(student_user):
+    from django.http import HttpResponse
+    from django.test import RequestFactory
+
+    from accounts.decorators import hr_required
+
+    @hr_required
+    def sample_view(request):
+        return HttpResponse("allowed", status=200)
+
+    request = RequestFactory().get("/hr/")
+    request.user = student_user
+    response = sample_view(request)
+    assert response.status_code == 403

@@ -285,6 +285,8 @@ def chat_inbox(request, user_id=None):
         primary_user_id = threads[0]["user"].id
 
     selected_user, context_kind, selected_query, primary_meta = _resolve_thread(primary_user_id, ctx_type, ctx_id)
+    if selected_query is None:
+        selected_query = {}
     secondary_user = None
     secondary_context_kind = None
     secondary_selected_query = {}

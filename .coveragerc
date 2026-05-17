@@ -7,8 +7,17 @@ source =
     onboarding
     OnboAArrrd
 omit =
+    */__init__.py
     */migrations/*
     */tests/*
+    */seeds/*
+    */management/commands/seed.py
+    */management/commands/seed_demo.py
+    */management/commands/clear_test_data.py
+    */asgi.py
+    */wsgi.py
+    */urls.py
+    */routing.py
     */__pycache__/*
     manage.py
 
