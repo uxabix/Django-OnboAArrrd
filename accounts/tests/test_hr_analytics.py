@@ -1,11 +1,18 @@
 """Tests for HR onboarding analytics helpers."""
 
 from datetime import timedelta
+from types import SimpleNamespace
 
 import pytest
 from django.utils import timezone
 
-from accounts.hr_analytics import compute_hr_analytics, parse_hr_stats_period
+from accounts.hr_analytics import (
+    _mentor_index,
+    _performance_index,
+    compute_hr_analytics,
+    parse_hr_stats_period,
+)
+from accounts.models import CustomUser
 from onboarding.models import Competency_paths, Task_status, User_paths, User_tasks
 
 pytestmark = pytest.mark.django_db
@@ -158,6 +165,151 @@ def test_completion_days_uses_days_between_assignment_and_submission(
     stats = compute_hr_analytics(today - timedelta(days=10), today + timedelta(days=1))
 
     assert stats["avg_completion_days"] == 4.0
+
+
+def test_compute_hr_analytics_picks_best_student_and_mentor(
+    db, student_role, mentor_role, catalog_task, competency_path
+):
+    today = timezone.now().date()
+
+    mentor_a = CustomUser.objects.create_user(
+        email="mentor.a@example.com",
+        password="pass12345",
+        first_name="Adam",
+        last_name="Mentor",
+        role=mentor_role,
+    )
+    mentor_b = CustomUser.objects.create_user(
+        email="mentor.b@example.com",
+        password="pass12345",
+        first_name="Beata",
+        last_name="Mentor",
+        role=mentor_role,
+    )
+    student_a = CustomUser.objects.create_user(
+        email="student.a@example.com",
+        password="pass12345",
+        first_name="Ala",
+        last_name="Student",
+        role=student_role,
+        mentor=mentor_a,
+    )
+    student_b = CustomUser.objects.create_user(
+        email="student.b@example.com",
+        password="pass12345",
+        first_name="Bartek",
+        last_name="Student",
+        role=student_role,
+        mentor=mentor_b,
+    )
+
+    good_task = User_tasks.objects.create(
+        user_id=student_a,
+        task_id=catalog_task,
+        assigned_by=mentor_a,
+        deadline=today + timedelta(days=5),
+    )
+    Task_status.objects.create(
+        user_task=good_task,
+        new_status=Task_status.Status.DO_WERYFIKACJI,
+        change_date=today,
+    )
+
+    mixed_task = User_tasks.objects.create(
+        user_id=student_b,
+        task_id=catalog_task,
+        assigned_by=mentor_b,
+        deadline=today - timedelta(days=2),
+    )
+    Task_status.objects.create(
+        user_task=mixed_task,
+        new_status=Task_status.Status.DO_WERYFIKACJI,
+        change_date=today,
+    )
+    User_tasks.objects.create(
+        user_id=student_b,
+        task_id=catalog_task,
+        assigned_by=mentor_b,
+        deadline=today - timedelta(days=1),
+    )
+
+    User_paths.objects.create(user=student_a, path=competency_path, assigned_by=mentor_a)
+
+    stats = compute_hr_analytics(today - timedelta(days=1), today + timedelta(days=1))
+
+    assert stats["best_student"]["user_id"] == student_a.pk
+    assert stats["best_student"]["score"] == 100.0
+    assert stats["best_mentor"]["user_id"] == mentor_a.pk
+    assert stats["best_mentor"]["score"] == 100.0
+    assert stats["best_mentor"]["students_count"] == 1
+    assert stats["best_mentor"]["paths_total"] == 1
+    assert stats["best_mentor"]["stars"] == 0
+
+
+def test_performance_and_mentor_index_helpers():
+    student_stats = {
+        "tasks_total": 4,
+        "on_time": 3,
+        "late": 1,
+        "overdue": 0,
+        "on_track": 0,
+        "approaching": 0,
+        "paths_total": 0,
+        "student_ids": set(),
+    }
+    mentor_stats = {
+        **student_stats,
+        "paths_total": 2,
+        "student_ids": {1, 2, 3},
+        "user": SimpleNamespace(stars=0),
+    }
+
+    assert _performance_index(student_stats) == 83.8
+    assert _mentor_index(mentor_stats) == 96.3
+
+    mentor_stats["user"] = SimpleNamespace(stars=4)
+    assert _mentor_index(mentor_stats) == 100.0
+
+
+def test_mentor_ranking_uses_stars_as_tiebreaker(
+    db, mentor_role, student_role, catalog_task
+):
+    today = timezone.now().date()
+    mentor_low = CustomUser.objects.create_user(
+        email="mentor.low@example.com",
+        password="pass12345",
+        role=mentor_role,
+        stars=0,
+    )
+    mentor_high = CustomUser.objects.create_user(
+        email="mentor.high@example.com",
+        password="pass12345",
+        role=mentor_role,
+        stars=5,
+    )
+    student = CustomUser.objects.create_user(
+        email="student.tie@example.com",
+        password="pass12345",
+        role=student_role,
+        mentor=mentor_low,
+    )
+
+    for mentor in (mentor_low, mentor_high):
+        user_task = User_tasks.objects.create(
+            user_id=student,
+            task_id=catalog_task,
+            assigned_by=mentor,
+            deadline=today + timedelta(days=3),
+        )
+        Task_status.objects.create(
+            user_task=user_task,
+            new_status=Task_status.Status.DO_WERYFIKACJI,
+            change_date=today,
+        )
+
+    stats = compute_hr_analytics(today - timedelta(days=1), today + timedelta(days=1))
+    assert stats["best_mentor"]["user_id"] == mentor_high.pk
+    assert stats["best_mentor"]["stars"] == 5
 
 
 def test_hr_dashboard_includes_analytics_context(client, hr_user, assigned_user_task):

@@ -87,12 +87,51 @@
         grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
         gap: 0.75rem;
     }
+    .hr-stat-grid-4 {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 0.75rem;
+    }
     .hr-stat-card {
         border: 1px solid rgba(0, 0, 0, 0.08);
         border-radius: 0.5rem;
         padding: 0.85rem 1rem;
         background: #fff;
         height: 100%;
+    }
+    .hr-stat-card.hr-leader-card {
+        flex: 0 1 22rem;
+        max-width: 100%;
+        text-align: center;
+    }
+    .hr-leaders-row {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        align-items: stretch;
+        gap: 0.75rem;
+        margin-top: 1.25rem;
+        padding-top: 1.25rem;
+        border-top: 1px solid rgba(0, 0, 0, 0.08);
+    }
+    .hr-ranking-note {
+        text-align: center;
+        max-width: 42rem;
+        margin-left: auto;
+        margin-right: auto;
+    }
+    @media (max-width: 1200px) {
+        .hr-stat-grid-4 {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+    }
+    @media (max-width: 576px) {
+        .hr-stat-grid-4 {
+            grid-template-columns: 1fr;
+        }
+        .hr-leader-card {
+            flex-basis: 100%;
+        }
     }
     .hr-stat-card .hr-stat-value {
         font-size: 1.35rem;
@@ -174,7 +213,7 @@
             Terminowość dotyczy bieżącego stanu tych przypisań (na czas, po terminie, przeterminowane, w trakcie).
         </p>
         {% if hr_analytics.tasks_total or hr_analytics.paths_total %}
-        <div class="hr-stat-grid">
+        <div class="hr-stat-grid-4">
             <div class="hr-stat-card">
                 <div class="hr-stat-label">Przypisane zadania</div>
                 <div class="hr-stat-value">{{ hr_analytics.tasks_total }}</div>
@@ -257,6 +296,52 @@
                 </div>
             </div>
         </div>
+        {% if hr_analytics.best_student or hr_analytics.best_mentor %}
+        <div class="hr-leaders-row">
+            {% if hr_analytics.best_student %}
+            <div class="hr-stat-card hr-leader-card border-primary border-2">
+                <div class="hr-stat-label"><i class="fas fa-user-graduate me-1 text-primary"></i>Najlepszy uczeń</div>
+                <div class="hr-stat-value">
+                    <a href="{% url 'accounts:user_profile_detail' hr_analytics.best_student.user_id %}" class="text-decoration-none">
+                        {{ hr_analytics.best_student.display_name }}
+                    </a>
+                </div>
+                <div class="hr-stat-detail">
+                    Wynik: <strong>{{ hr_analytics.best_student.score }}</strong> / 100
+                    · {{ hr_analytics.best_student.on_time_pct }}% na czas
+                    ({{ hr_analytics.best_student.on_time_count }}/{{ hr_analytics.best_student.tasks_total }} zadań)
+                    <br><small class="text-muted">{{ hr_analytics.best_student.email }}</small>
+                </div>
+            </div>
+            {% endif %}
+            {% if hr_analytics.best_mentor %}
+            <div class="hr-stat-card hr-leader-card border-success border-2">
+                <div class="hr-stat-label"><i class="fas fa-chalkboard-teacher me-1 text-success"></i>Najlepszy mentor</div>
+                <div class="hr-stat-value">
+                    <a href="{% url 'accounts:user_profile_detail' hr_analytics.best_mentor.user_id %}" class="text-decoration-none">
+                        {{ hr_analytics.best_mentor.display_name }}
+                    </a>
+                </div>
+                <div class="hr-stat-detail">
+                    Wynik: <strong>{{ hr_analytics.best_mentor.score }}</strong> / 100
+                    · {{ hr_analytics.best_mentor.on_time_pct }}% zadań podopiecznych na czas
+                    ({{ hr_analytics.best_mentor.on_time_count }}/{{ hr_analytics.best_mentor.tasks_total }})
+                    · {{ hr_analytics.best_mentor.students_count }} uczniów
+                    {% if hr_analytics.best_mentor.paths_total %}
+                        · {{ hr_analytics.best_mentor.paths_total }} ścieżek
+                    {% endif %}
+                    · {{ hr_analytics.best_mentor.stars }} gwiazdek
+                    <br><small class="text-muted">{{ hr_analytics.best_mentor.email }}</small>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+        <p class="text-muted small mt-3 mb-0 hr-ranking-note">
+            Ranking w okresie: pełne punkty za zadania na czas, częściowe za oddane po terminie i w trakcie;
+            mentor otrzymuje dodatkowy bonus za liczbę podopiecznych, przypisań, ścieżek oraz gwiazdki
+            (za ukończone zadania podopiecznych).
+        </p>
+        {% endif %}
         {% else %}
         <div class="alert alert-light border mb-0">
             Brak przypisań zadań lub ścieżek w wybranym okresie.
