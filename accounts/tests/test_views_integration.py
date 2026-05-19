@@ -35,6 +35,28 @@ def test_mentor_ranking_lists_mentors(client, mentor_user):
     response = client.get(reverse("accounts:mentor_ranking"))
     assert response.status_code == 200
     assert response.context["page_obj"].paginator.count >= 1
+    assert response.context["metric"] == "stars"
+
+
+def test_mentor_ranking_supports_hr_index_metric(client, mentor_user, assigned_user_task):
+    client.force_login(mentor_user)
+    response = client.get(reverse("accounts:mentor_ranking"), {"metric": "hr_index"})
+    assert response.status_code == 200
+    assert response.context["metric"] == "hr_index"
+    rows = list(response.context["page_obj"])
+    assert rows
+    assert rows[0]["hr_index"] is not None or rows[0]["tasks_assigned"] == 0
+
+
+def test_mentor_ranking_preserves_metric_in_pagination_query(client, mentor_user):
+    client.force_login(mentor_user)
+    response = client.get(
+        reverse("accounts:mentor_ranking"),
+        {"metric": "tasks_assigned", "stats_from": "2020-01-01", "stats_to": "2099-12-31"},
+    )
+    assert response.status_code == 200
+    assert "metric=tasks_assigned" in response.context["querystring_no_page"]
+    assert "stats_from=2020-01-01" in response.context["querystring_no_page"]
 
 
 def test_force_first_password_change_get_for_temporary_account(client, hr_user):

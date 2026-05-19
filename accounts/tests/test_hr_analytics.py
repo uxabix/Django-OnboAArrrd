@@ -4,11 +4,13 @@ from datetime import timedelta
 from types import SimpleNamespace
 
 import pytest
+from django.db.models import Count
 from django.utils import timezone
 
 from accounts.hr_analytics import (
     _mentor_index,
     _performance_index,
+    build_mentor_ranking,
     compute_hr_analytics,
     parse_hr_stats_period,
 )
@@ -310,6 +312,58 @@ def test_mentor_ranking_uses_stars_as_tiebreaker(
     stats = compute_hr_analytics(today - timedelta(days=1), today + timedelta(days=1))
     assert stats["best_mentor"]["user_id"] == mentor_high.pk
     assert stats["best_mentor"]["stars"] == 5
+
+
+def test_build_mentor_ranking_sorts_by_selected_metric(
+    db, mentor_role, student_role, catalog_task
+):
+    today = timezone.now().date()
+    mentor_stars = CustomUser.objects.create_user(
+        email="mentor.stars@example.com",
+        password="pass12345",
+        role=mentor_role,
+        stars=10,
+    )
+    mentor_active = CustomUser.objects.create_user(
+        email="mentor.active@example.com",
+        password="pass12345",
+        role=mentor_role,
+        stars=1,
+    )
+    student = CustomUser.objects.create_user(
+        email="student.rank@example.com",
+        password="pass12345",
+        role=student_role,
+        mentor=mentor_active,
+    )
+
+    user_task = User_tasks.objects.create(
+        user_id=student,
+        task_id=catalog_task,
+        assigned_by=mentor_active,
+        deadline=today + timedelta(days=4),
+    )
+    Task_status.objects.create(
+        user_task=user_task,
+        new_status=Task_status.Status.DO_WERYFIKACJI,
+        change_date=today,
+    )
+
+    mentors = list(
+        CustomUser.objects.filter(pk__in=[mentor_stars.pk, mentor_active.pk]).annotate(
+            mentees_count=Count("mentees")
+        )
+    )
+
+    by_stars, _ = build_mentor_ranking(
+        mentors, metric="stars", date_from=today - timedelta(days=1), date_to=today + timedelta(days=1)
+    )
+    assert by_stars[0]["mentor"].pk == mentor_stars.pk
+
+    by_hr, _ = build_mentor_ranking(
+        mentors, metric="hr_index", date_from=today - timedelta(days=1), date_to=today + timedelta(days=1)
+    )
+    assert by_hr[0]["mentor"].pk == mentor_active.pk
 
 
 def test_hr_dashboard_includes_analytics_context(client, hr_user, assigned_user_task):

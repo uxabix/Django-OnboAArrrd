@@ -21,6 +21,53 @@ _OUTCOME_WEIGHTS = {
     "overdue": 0.0,
 }
 
+DEFAULT_MENTOR_RANKING_METRIC = "stars"
+
+MENTOR_RANKING_METRICS = {
+    "stars": {
+        "label": "Gwiazdki",
+        "short_label": "Gwiazdki",
+        "description": "Łączna liczba gwiazdek za ukończone zadania podopiecznych (cała historia).",
+        "uses_period": False,
+    },
+    "hr_index": {
+        "label": "Indeks HR",
+        "short_label": "Indeks HR",
+        "description": "Formuła z panelu HR: terminowość przypisań w okresie plus bonusy (podopieczni, wolumen, ścieżki, gwiazdki).",
+        "uses_period": True,
+    },
+    "on_time_pct": {
+        "label": "Terminowość",
+        "short_label": "% na czas",
+        "description": "Procent przypisanych zadań oddanych na czas w wybranym okresie.",
+        "uses_period": True,
+    },
+    "completion_rate": {
+        "label": "Skuteczność oddania",
+        "short_label": "% oddanych",
+        "description": "Procent przypisanych zadań oddanych przez podopiecznych (na czas lub po terminie).",
+        "uses_period": True,
+    },
+    "tasks_assigned": {
+        "label": "Przypisane zadania",
+        "short_label": "Zadania",
+        "description": "Liczba zadań przypisanych podopiecznym w okresie.",
+        "uses_period": True,
+    },
+    "paths_assigned": {
+        "label": "Przypisane ścieżki",
+        "short_label": "Ścieżki",
+        "description": "Liczba ścieżek kompetencyjnych przypisanych w okresie.",
+        "uses_period": True,
+    },
+    "mentees_count": {
+        "label": "Liczba podopiecznych",
+        "short_label": "Podopieczni",
+        "description": "Aktualna liczba uczniów przypisanych do mentora (bez filtra daty).",
+        "uses_period": False,
+    },
+}
+
 
 def _avg(values):
     """Return arithmetic mean rounded to one decimal, or ``None`` when empty."""
@@ -141,6 +188,168 @@ def _accumulate_task_for_person(stats, state):
     stats[state] += 1
 
 
+def _assignment_querysets(date_from=None, date_to=None):
+    """Return filtered task/path querysets for assignment analytics."""
+    task_qs = (
+        User_tasks.objects.select_related(
+            "user_id",
+            "user_id__role",
+            "task_id",
+            "assigned_by",
+            "assigned_by__role",
+        )
+        .prefetch_related("statuses")
+        .all()
+    )
+    path_qs = User_paths.objects.select_related(
+        "user", "path", "assigned_by", "assigned_by__role"
+    ).all()
+
+    if date_from:
+        task_qs = task_qs.filter(created_at__date__gte=date_from)
+        path_qs = path_qs.filter(assigned_at__date__gte=date_from)
+    if date_to:
+        task_qs = task_qs.filter(created_at__date__lte=date_to)
+        path_qs = path_qs.filter(assigned_at__date__lte=date_to)
+
+    return task_qs, path_qs
+
+
+def _accumulate_mentor_assignments(mentor_stats, task_qs, path_qs, mentor_ids=None):
+    """Fill ``mentor_stats`` buckets from assignment rows."""
+    for user_task in task_qs:
+        mentor = user_task.assigned_by
+        if not mentor or not mentor.pk:
+            continue
+        if mentor_ids is not None and mentor.pk not in mentor_ids:
+            continue
+        bucket = mentor_stats[mentor.pk]
+        bucket["user"] = mentor
+        _accumulate_task_for_person(bucket, user_task.deadline_state)
+        student = user_task.user_id
+        if student and student.pk:
+            bucket["student_ids"].add(student.pk)
+
+    for user_path in path_qs:
+        mentor = user_path.assigned_by
+        if not mentor or not mentor.pk:
+            continue
+        if mentor_ids is not None and mentor.pk not in mentor_ids:
+            continue
+        bucket = mentor_stats[mentor.pk]
+        bucket["user"] = mentor
+        bucket["paths_total"] += 1
+
+
+def compute_mentor_stats_map(mentors, date_from=None, date_to=None):
+    """Build per-mentor assignment stats for the public ranking page."""
+    mentor_stats = {}
+    mentor_ids = set()
+    for mentor in mentors:
+        mentor_stats[mentor.pk] = _new_person_stats()
+        mentor_stats[mentor.pk]["user"] = mentor
+        mentor_ids.add(mentor.pk)
+
+    task_qs, path_qs = _assignment_querysets(date_from, date_to)
+    _accumulate_mentor_assignments(mentor_stats, task_qs, path_qs, mentor_ids=mentor_ids)
+    return mentor_stats
+
+
+def _mentor_ranking_sort_value(mentor, stats, metric, mentees_count):
+    """Numeric sort key for a mentor under the selected metric."""
+    if metric == "stars":
+        return float(mentor.stars or 0)
+    if metric == "mentees_count":
+        return float(mentees_count or 0)
+    if metric == "tasks_assigned":
+        return float(stats["tasks_total"])
+    if metric == "paths_assigned":
+        return float(stats["paths_total"])
+    if metric == "on_time_pct":
+        return _pct(stats["on_time"], stats["tasks_total"]) if stats["tasks_total"] else 0.0
+    if metric == "completion_rate":
+        total = stats["tasks_total"]
+        submitted = stats["on_time"] + stats["late"]
+        return _pct(submitted, total) if total else 0.0
+    if metric == "hr_index":
+        return float(_mentor_index(stats) or 0)
+    return 0.0
+
+
+def _format_mentor_rank_value(value, metric):
+    """Human-readable value for the active ranking column."""
+    if metric in ("on_time_pct", "completion_rate"):
+        return f"{value:.1f}%"
+    if metric == "hr_index":
+        return f"{value:.1f} / 100"
+    if metric == "stars":
+        return str(int(value))
+    return str(int(value))
+
+
+def build_mentor_ranking(mentors, metric=DEFAULT_MENTOR_RANKING_METRIC, date_from=None, date_to=None):
+    """Sort mentors by ``metric`` using assignment stats in ``[date_from, date_to]``."""
+    if metric not in MENTOR_RANKING_METRICS:
+        metric = DEFAULT_MENTOR_RANKING_METRIC
+
+    stats_map = compute_mentor_stats_map(mentors, date_from, date_to)
+    rows = []
+
+    for mentor in mentors:
+        stats = stats_map[mentor.pk]
+        mentees_count = getattr(mentor, "mentees_count", None)
+        if mentees_count is None:
+            mentees_count = mentor.mentees.count()
+
+        submitted = stats["on_time"] + stats["late"]
+        hr_index = _mentor_index(stats) if stats["tasks_total"] >= _MIN_RANKING_TASKS else None
+        rank_value = _mentor_ranking_sort_value(mentor, stats, metric, mentees_count)
+
+        rows.append(
+            {
+                "mentor": mentor,
+                "rank_value": rank_value,
+                "rank_value_display": _format_mentor_rank_value(rank_value, metric),
+                "stars": mentor.stars or 0,
+                "mentees_count": mentees_count,
+                "tasks_assigned": stats["tasks_total"],
+                "paths_assigned": stats["paths_total"],
+                "on_time_pct": _pct(stats["on_time"], stats["tasks_total"])
+                if stats["tasks_total"]
+                else None,
+                "completion_rate": _pct(submitted, stats["tasks_total"])
+                if stats["tasks_total"]
+                else None,
+                "hr_index": hr_index,
+                "completed_tasks": submitted,
+            }
+        )
+
+    rows.sort(
+        key=lambda row: (
+            -row["rank_value"],
+            -row["stars"],
+            (row["mentor"].last_name or "").lower(),
+            (row["mentor"].first_name or "").lower(),
+            row["mentor"].email.lower(),
+        )
+    )
+    return rows, metric
+
+
+def parse_mentor_ranking_period(request_get):
+    """Parse ranking page period filters; default is all-time."""
+    stats_from_raw = (request_get.get("stats_from") or "").strip()
+    stats_to_raw = (request_get.get("stats_to") or "").strip()
+    stats_all_time = request_get.get("stats_all") == "1"
+    return parse_hr_stats_period(
+        stats_from_raw,
+        stats_to_raw,
+        apply_default=False,
+        all_time=stats_all_time or (not stats_from_raw and not stats_to_raw),
+    )
+
+
 def _compute_leaderboards(task_qs, path_qs):
     """Derive best student/mentor for assignments in the filtered queryset."""
     student_stats = defaultdict(_new_person_stats)
@@ -155,19 +364,7 @@ def _compute_leaderboards(task_qs, path_qs):
             bucket["user"] = student
             _accumulate_task_for_person(bucket, state)
 
-        mentor = user_task.assigned_by
-        if mentor and mentor.pk:
-            bucket = mentor_stats[mentor.pk]
-            bucket["user"] = mentor
-            _accumulate_task_for_person(bucket, state)
-            if student and student.pk:
-                bucket["student_ids"].add(student.pk)
-
-    for user_path in path_qs:
-        mentor = user_path.assigned_by
-        if mentor and mentor.pk:
-            mentor_stats[mentor.pk]["user"] = mentor
-            mentor_stats[mentor.pk]["paths_total"] += 1
+    _accumulate_mentor_assignments(mentor_stats, task_qs, path_qs)
 
     student_candidates = []
     for stats in student_stats.values():
@@ -236,27 +433,7 @@ def compute_hr_analytics(date_from=None, date_to=None):
     Returns:
         dict: Counts, percentages, and average day deltas for the HR template.
     """
-    task_qs = (
-        User_tasks.objects.select_related(
-            "user_id",
-            "user_id__role",
-            "task_id",
-            "assigned_by",
-            "assigned_by__role",
-        )
-        .prefetch_related("statuses")
-        .all()
-    )
-    path_qs = User_paths.objects.select_related(
-        "user", "path", "assigned_by", "assigned_by__role"
-    ).all()
-
-    if date_from:
-        task_qs = task_qs.filter(created_at__date__gte=date_from)
-        path_qs = path_qs.filter(assigned_at__date__gte=date_from)
-    if date_to:
-        task_qs = task_qs.filter(created_at__date__lte=date_to)
-        path_qs = path_qs.filter(assigned_at__date__lte=date_to)
+    task_qs, path_qs = _assignment_querysets(date_from, date_to)
 
     today = timezone.now().date()
 

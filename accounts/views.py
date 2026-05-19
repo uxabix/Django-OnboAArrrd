@@ -195,22 +195,69 @@ def user_search_suggest(request):
 
 @login_required
 def mentor_ranking(request):
-    """Paginated leaderboard of users whose role name is ``Mentor`` by stars.
+    """Paginated mentor leaderboard with selectable ranking metrics and period.
 
     Args:
-        request: Authenticated ``HttpRequest``; optional ``GET`` ``page``.
+        request: Authenticated ``HttpRequest``; optional ``GET`` ``page``,
+            ``metric``, ``stats_from``, ``stats_to``, ``stats_all``.
 
     Returns:
         HttpResponse: Rendered ``accounts/mentor_ranking.html``.
     """
     from django.core.paginator import Paginator
-    mentors = CustomUser.objects.filter(
-    role__name='Mentor'
-    ).order_by('-stars').distinct()
-    paginator = Paginator(mentors, 10)
-    page_number = request.GET.get('page', 1)
-    page_obj = paginator.get_page(page_number)
-    return render(request, 'accounts/mentor_ranking.html', {'page_obj': page_obj})
+
+    from .hr_analytics import (
+        DEFAULT_MENTOR_RANKING_METRIC,
+        MENTOR_RANKING_METRICS,
+        build_mentor_ranking,
+        parse_mentor_ranking_period,
+    )
+
+    metric = (request.GET.get("metric") or DEFAULT_MENTOR_RANKING_METRIC).strip()
+    if metric not in MENTOR_RANKING_METRICS:
+        metric = DEFAULT_MENTOR_RANKING_METRIC
+
+    date_from, date_to, stats_from, stats_to = parse_mentor_ranking_period(request.GET)
+    stats_all_time = request.GET.get("stats_all") == "1"
+
+    mentors = list(
+        CustomUser.objects.filter(role__name__iexact="Mentor")
+        .annotate(mentees_count=models.Count("mentees"))
+        .order_by("last_name", "first_name", "email")
+    )
+    ranking_rows, metric = build_mentor_ranking(
+        mentors,
+        metric=metric,
+        date_from=date_from,
+        date_to=date_to,
+    )
+
+    paginator = Paginator(ranking_rows, 10)
+    page_obj = paginator.get_page(request.GET.get("page", 1))
+
+    query_params = request.GET.copy()
+    if "page" in query_params:
+        del query_params["page"]
+    querystring_no_page = query_params.urlencode()
+
+    metric_meta = MENTOR_RANKING_METRICS[metric]
+
+    return render(
+        request,
+        "accounts/mentor_ranking.html",
+        {
+            "page_obj": page_obj,
+            "metric": metric,
+            "metric_meta": metric_meta,
+            "metric_choices": MENTOR_RANKING_METRICS,
+            "stats_from": stats_from,
+            "stats_to": stats_to,
+            "stats_all_time": stats_all_time,
+            "period_from": date_from,
+            "period_to": date_to,
+            "querystring_no_page": querystring_no_page,
+        },
+    )
 
 
 @login_required
