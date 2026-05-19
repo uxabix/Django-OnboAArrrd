@@ -2,13 +2,192 @@
 
 {% block title %}Profil użytkownika - OnboAArrrd{% endblock %}
 
+{% block extra_css %}
+<style>
+    .profile-summary-card {
+        overflow: hidden;
+        border: none;
+    }
+    .profile-summary-hero {
+        position: relative;
+        padding: 1.75rem 1.25rem 2.5rem;
+        text-align: center;
+        color: #fff;
+        background: linear-gradient(135deg, #4e73df 0%, #224abe 100%);
+    }
+    .profile-summary-hero.profile-role-student {
+        background: linear-gradient(135deg, #36b9cc 0%, #258391 100%);
+    }
+    .profile-summary-hero.profile-role-mentor {
+        background: linear-gradient(135deg, #1cc88a 0%, #13855c 100%);
+    }
+    .profile-summary-hero.profile-role-hr {
+        background: linear-gradient(135deg, #f6c23e 0%, #dda20a 100%);
+        color: #212529;
+    }
+    .profile-summary-hero.profile-role-admin,
+    .profile-summary-hero.profile-role-administrator {
+        background: linear-gradient(135deg, #6f42c1 0%, #4e2d91 100%);
+    }
+    .profile-summary-hero::after {
+        content: "";
+        position: absolute;
+        inset: auto 0 0 0;
+        height: 1.25rem;
+        background: #fff;
+        border-radius: 1.25rem 1.25rem 0 0;
+    }
+    .profile-avatar {
+        width: 5.75rem;
+        height: 5.75rem;
+        margin: 0 auto;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.95);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 2.85rem;
+        line-height: 1;
+        box-shadow: 0 0.5rem 1.25rem rgba(0, 0, 0, 0.15);
+        border: 4px solid rgba(255, 255, 255, 0.65);
+    }
+    .profile-role-hr .profile-avatar {
+        background: #fff;
+    }
+    .profile-hero-deco {
+        position: absolute;
+        font-size: 1.35rem;
+        opacity: 0.35;
+        pointer-events: none;
+        user-select: none;
+    }
+    .profile-hero-deco-1 { top: 0.75rem; left: 1rem; }
+    .profile-hero-deco-2 { top: 1.25rem; right: 1.1rem; }
+    .profile-hero-deco-3 { bottom: 2rem; left: 1.5rem; }
+    .profile-hero-deco-4 { bottom: 2.35rem; right: 1.25rem; }
+    .profile-summary-body {
+        margin-top: -0.5rem;
+        position: relative;
+        z-index: 1;
+    }
+    .profile-name {
+        font-size: 1.35rem;
+        font-weight: 700;
+        margin-bottom: 0.25rem;
+    }
+    .profile-quick-stats {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 0.5rem;
+        margin: 1rem 0 1.25rem;
+    }
+    .profile-quick-stat {
+        text-align: center;
+        border: 1px solid rgba(0, 0, 0, 0.08);
+        border-radius: 0.65rem;
+        padding: 0.55rem 0.35rem;
+        background: #f8f9fa;
+    }
+    .profile-quick-stat .emoji {
+        font-size: 1.35rem;
+        line-height: 1.2;
+        display: block;
+    }
+    .profile-quick-stat .value {
+        font-weight: 700;
+        font-size: 1.05rem;
+        line-height: 1.2;
+    }
+    .profile-quick-stat .label {
+        font-size: 0.68rem;
+        color: #6c757d;
+        text-transform: uppercase;
+        letter-spacing: 0.02em;
+    }
+    .profile-meta-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+    .profile-meta-list li {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.75rem;
+        padding: 0.65rem 0;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+    }
+    .profile-meta-list li:last-child {
+        border-bottom: none;
+        padding-bottom: 0;
+    }
+    .profile-meta-icon {
+        width: 2rem;
+        height: 2rem;
+        border-radius: 0.5rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        background: #e7f1ff;
+        color: #0d6efd;
+        font-size: 0.95rem;
+    }
+    .profile-meta-list .meta-label {
+        font-size: 0.75rem;
+        color: #6c757d;
+        margin-bottom: 0.1rem;
+    }
+    .profile-meta-list .meta-value {
+        font-size: 0.95rem;
+        font-weight: 500;
+        word-break: break-word;
+    }
+    .profile-stat-tile {
+        border: 1px solid rgba(0, 0, 0, 0.08);
+        border-radius: 0.65rem;
+        padding: 0.85rem 1rem;
+        background: #fff;
+        height: 100%;
+    }
+    .profile-stat-tile .tile-icon {
+        font-size: 1.25rem;
+        margin-bottom: 0.35rem;
+        opacity: 0.9;
+    }
+    .profile-stat-tile .tile-label {
+        font-size: 0.8rem;
+        color: #6c757d;
+    }
+    .profile-stat-tile .tile-value {
+        font-size: 1.45rem;
+        font-weight: 700;
+        line-height: 1.2;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
+{% with role_key=profile_user.role.name|default:""|lower %}
 <div class="row g-4">
     <div class="col-lg-5">
-        <div class="card h-100">
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-start mb-3">
-                    <h2 class="h4 mb-0">
+        <div class="card profile-summary-card h-100 shadow-sm">
+            <div class="profile-summary-hero profile-role-{{ role_key|default:'user' }}">
+                <span class="profile-hero-deco profile-hero-deco-1" aria-hidden="true">✨</span>
+                <span class="profile-hero-deco profile-hero-deco-2" aria-hidden="true">📌</span>
+                <span class="profile-hero-deco profile-hero-deco-3" aria-hidden="true">🎯</span>
+                <span class="profile-hero-deco profile-hero-deco-4" aria-hidden="true">🚀</span>
+                <div class="profile-avatar" aria-hidden="true">
+                    {% if role_key == "student" %}🎓
+                    {% elif role_key == "mentor" %}🧑‍🏫
+                    {% elif role_key == "hr" %}💼
+                    {% elif role_key == "admin" or role_key == "administrator" %}🛡️
+                    {% else %}👤
+                    {% endif %}
+                </div>
+            </div>
+            <div class="card-body profile-summary-body">
+                <div class="d-flex justify-content-between align-items-start gap-2 mb-1">
+                    <h2 class="profile-name mb-0">
                         {% if profile_user.first_name or profile_user.last_name %}
                             {{ profile_user.first_name }} {{ profile_user.last_name }}
                         {% else %}
@@ -16,12 +195,22 @@
                         {% endif %}
                     </h2>
                     {% if is_own_profile %}
-                        <span class="badge text-bg-primary">Twój profil</span>
+                        <span class="badge text-bg-primary shrink-0">Twój profil</span>
                     {% endif %}
                 </div>
 
-                <p class="text-muted mb-3">{{ profile_user.email }}</p>
-                <div class="d-flex gap-2 mb-3">
+                <p class="text-muted mb-2">
+                    <i class="fas fa-envelope me-1"></i>{{ profile_user.email }}
+                </p>
+
+                {% if profile_user.role %}
+                <span class="badge rounded-pill text-bg-light border text-dark mb-3">
+                    {% if role_key == "student" %}🎓{% elif role_key == "mentor" %}🧑‍🏫{% elif role_key == "hr" %}💼{% else %}👤{% endif %}
+                    {% include "accounts/includes/hr_role_pl.html" with role=profile_user.role only %}
+                </span>
+                {% endif %}
+
+                <div class="d-flex flex-wrap gap-2 mb-2">
                     {% if is_own_profile %}
                         <a href="{% url 'chat:chat_inbox' %}" class="btn btn-outline-primary btn-sm">
                             <i class="fas fa-comments me-1"></i>Wiadomości
@@ -33,100 +222,175 @@
                     {% endif %}
                 </div>
 
-                <dl class="row mb-0">
-                    <dt class="col-5">Rola</dt>
-                    <dd class="col-7">{{ profile_user.role.name|default:"Brak roli" }}</dd>
+                <div class="profile-quick-stats">
+                    <div class="profile-quick-stat">
+                        <span class="emoji" aria-hidden="true">⭐</span>
+                        <div class="value">{{ stats.stars }}</div>
+                        <div class="label">Gwiazdki</div>
+                    </div>
+                    <div class="profile-quick-stat">
+                        <span class="emoji" aria-hidden="true">📋</span>
+                        <div class="value">{{ stats.tasks_total }}</div>
+                        <div class="label">Zadania</div>
+                    </div>
+                    <div class="profile-quick-stat">
+                        <span class="emoji" aria-hidden="true">🛤️</span>
+                        <div class="value">{{ stats.paths_count }}</div>
+                        <div class="label">Ścieżki</div>
+                    </div>
+                </div>
 
-                    <dt class="col-5">Status konta</dt>
-                    <dd class="col-7">{{ profile_user.status }}</dd>
-
-                    <dt class="col-5">Data utworzenia</dt>
-                    <dd class="col-7">{{ profile_user.created_at|date:"Y-m-d H:i" }}</dd>
-
-                    <dt class="col-5">Mentor</dt>
-                    <dd class="col-7">
-                        {% if profile_user.mentor %}
-                            <a href="{% url 'accounts:user_profile_detail' profile_user.mentor.id %}">
-                                {{ mentor_name }}
-                            </a>
-                        {% else %}
-                            Nie przypisano
-                        {% endif %}
-                    </dd>
-
-                    <dt class="col-5">Podopieczni</dt>
-                    <dd class="col-7">{{ stats.mentees_count }}</dd>
-
-                    <dt class="col-5">Gwiazdki</dt>
-                    <dd class="col-7">{{ stats.stars }}</dd>
-                </dl>
+                <ul class="profile-meta-list">
+                    <li>
+                        <span class="profile-meta-icon"><i class="fas fa-user-tag"></i></span>
+                        <div>
+                            <div class="meta-label">Rola</div>
+                            <div class="meta-value">
+                                {% if profile_user.role %}
+                                    {% include "accounts/includes/hr_role_pl.html" with role=profile_user.role only %}
+                                {% else %}
+                                    Brak roli
+                                {% endif %}
+                            </div>
+                        </div>
+                    </li>
+                    <li>
+                        <span class="profile-meta-icon"><i class="fas fa-circle-check"></i></span>
+                        <div>
+                            <div class="meta-label">Status konta</div>
+                            <div class="meta-value">
+                                {% if profile_user.status == "active" %}
+                                    <span class="badge text-bg-success">Aktywny</span>
+                                {% else %}
+                                    <span class="badge text-bg-secondary">Nieaktywny</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </li>
+                    <li>
+                        <span class="profile-meta-icon"><i class="fas fa-calendar-plus"></i></span>
+                        <div>
+                            <div class="meta-label">Data utworzenia</div>
+                            <div class="meta-value">{{ profile_user.created_at|date:"Y-m-d H:i" }}</div>
+                        </div>
+                    </li>
+                    <li>
+                        <span class="profile-meta-icon"><i class="fas fa-user-graduate"></i></span>
+                        <div>
+                            <div class="meta-label">Mentor</div>
+                            <div class="meta-value">
+                                {% if profile_user.mentor %}
+                                    <a href="{% url 'accounts:user_profile_detail' profile_user.mentor.id %}" class="text-decoration-none">
+                                        {{ mentor_name }}
+                                    </a>
+                                {% else %}
+                                    <span class="text-muted">Nie przypisano</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </li>
+                    <li>
+                        <span class="profile-meta-icon"><i class="fas fa-people-group"></i></span>
+                        <div>
+                            <div class="meta-label">Podopieczni</div>
+                            <div class="meta-value">
+                                {% if stats.mentees_count %}
+                                    {{ stats.mentees_count }} 👥
+                                {% else %}
+                                    <span class="text-muted">Brak</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </li>
+                    {% if stats.stars %}
+                    <li>
+                        <span class="profile-meta-icon"><i class="fas fa-star"></i></span>
+                        <div>
+                            <div class="meta-label">Osiągnięcia mentora</div>
+                            <div class="meta-value">{{ profile_user.get_stars_display }}</div>
+                        </div>
+                    </li>
+                    {% endif %}
+                </ul>
             </div>
         </div>
     </div>
 
     <div class="col-lg-7">
-        <div class="card h-100">
+        <div class="card h-100 shadow-sm">
             <div class="card-body">
-                <h3 class="h5 mb-3">Statystyki onboardingowe</h3>
+                <h3 class="h5 mb-3">
+                    <i class="fas fa-chart-line me-2 text-primary"></i>Statystyki onboardingowe
+                </h3>
                 <div class="row g-3">
                     <div class="col-sm-6">
-                        <div class="border rounded p-3">
-                            <div class="small text-muted">Przypisane ścieżki</div>
-                            <div class="h4 mb-0">{{ stats.paths_count }}</div>
+                        <div class="profile-stat-tile">
+                            <div class="tile-icon">🛤️</div>
+                            <div class="tile-label">Przypisane ścieżki</div>
+                            <div class="tile-value">{{ stats.paths_count }}</div>
                         </div>
                     </div>
                     <div class="col-sm-6">
-                        <div class="border rounded p-3">
-                            <div class="small text-muted">Przypisane zadania</div>
-                            <div class="h4 mb-0">{{ stats.tasks_total }}</div>
+                        <div class="profile-stat-tile">
+                            <div class="tile-icon">📋</div>
+                            <div class="tile-label">Przypisane zadania</div>
+                            <div class="tile-value">{{ stats.tasks_total }}</div>
                         </div>
                     </div>
                     <div class="col-sm-6">
-                        <div class="border rounded p-3">
-                            <div class="small text-muted">Ukończone zadania</div>
-                            <div class="h4 mb-0 text-success">{{ stats.tasks_completed }}</div>
+                        <div class="profile-stat-tile">
+                            <div class="tile-icon">✅</div>
+                            <div class="tile-label">Ukończone zadania</div>
+                            <div class="tile-value text-success">{{ stats.tasks_completed }}</div>
                         </div>
                     </div>
                     <div class="col-sm-6">
-                        <div class="border rounded p-3">
-                            <div class="small text-muted">Do weryfikacji</div>
-                            <div class="h4 mb-0 text-warning">{{ stats.tasks_submitted_for_review }}</div>
+                        <div class="profile-stat-tile">
+                            <div class="tile-icon">🔍</div>
+                            <div class="tile-label">Do weryfikacji</div>
+                            <div class="tile-value text-warning">{{ stats.tasks_submitted_for_review }}</div>
                         </div>
                     </div>
                     <div class="col-sm-6">
-                        <div class="border rounded p-3">
-                            <div class="small text-muted">W trakcie / do zrobienia</div>
-                            <div class="h4 mb-0">{{ stats.tasks_in_progress }} / {{ stats.tasks_to_do }}</div>
+                        <div class="profile-stat-tile">
+                            <div class="tile-icon">⏳</div>
+                            <div class="tile-label">W trakcie / do zrobienia</div>
+                            <div class="tile-value">{{ stats.tasks_in_progress }} / {{ stats.tasks_to_do }}</div>
                         </div>
                     </div>
                     <div class="col-sm-6">
-                        <div class="border rounded p-3">
-                            <div class="small text-muted">Przeterminowane zadania</div>
-                            <div class="h4 mb-0 text-danger">{{ stats.tasks_overdue }}</div>
+                        <div class="profile-stat-tile">
+                            <div class="tile-icon">⚠️</div>
+                            <div class="tile-label">Przeterminowane zadania</div>
+                            <div class="tile-value text-danger">{{ stats.tasks_overdue }}</div>
                         </div>
                     </div>
                     <div class="col-sm-6">
-                        <div class="border rounded p-3">
-                            <div class="small text-muted">Odznaki</div>
-                            <div class="h4 mb-0">{{ stats.badges_count }}</div>
+                        <div class="profile-stat-tile">
+                            <div class="tile-icon">🏅</div>
+                            <div class="tile-label">Odznaki</div>
+                            <div class="tile-value">{{ stats.badges_count }}</div>
                         </div>
                     </div>
                     <div class="col-sm-6">
-                        <div class="border rounded p-3">
-                            <div class="small text-muted">Raporty (otrzymane / wygenerowane)</div>
-                            <div class="h4 mb-0">{{ stats.reports_received_count }} / {{ stats.reports_generated_count }}</div>
+                        <div class="profile-stat-tile">
+                            <div class="tile-icon">📄</div>
+                            <div class="tile-label">Raporty (otrzymane / wygenerowane)</div>
+                            <div class="tile-value">{{ stats.reports_received_count }} / {{ stats.reports_generated_count }}</div>
                         </div>
                     </div>
                     <div class="col-sm-6">
-                        <div class="border rounded p-3">
-                            <div class="small text-muted">Oceny (otrzymane / wystawione)</div>
-                            <div class="h4 mb-0">{{ stats.grades_received_count }} / {{ stats.grades_given_count }}</div>
+                        <div class="profile-stat-tile">
+                            <div class="tile-icon">⭐</div>
+                            <div class="tile-label">Oceny (otrzymane / wystawione)</div>
+                            <div class="tile-value">{{ stats.grades_received_count }} / {{ stats.grades_given_count }}</div>
                         </div>
                     </div>
                     <div class="col-sm-6">
-                        <div class="border rounded p-3">
-                            <div class="small text-muted">Średnia ocen (otrzymane / wystawione)</div>
-                            <div class="h4 mb-0">
+                        <div class="profile-stat-tile">
+                            <div class="tile-icon">📊</div>
+                            <div class="tile-label">Średnia ocen (otrzymane / wystawione)</div>
+                            <div class="tile-value">
                                 {{ stats.avg_grade_received|floatformat:2|default:"-" }}
                                 /
                                 {{ stats.avg_grade_given|floatformat:2|default:"-" }}
@@ -136,17 +400,20 @@
                 </div>
 
                 {% if stats.mentees_count > 0 %}
-                    <hr>
-                    <h4 class="h6">Mentoring</h4>
+                    <hr class="my-4">
+                    <h4 class="h6 mb-2">
+                        <i class="fas fa-users me-1 text-success"></i>Mentoring
+                    </h4>
                     <p class="mb-2">
                         Łącznie zadań podopiecznych: <strong>{{ stats.mentees_task_total }}</strong>,
                         ukończonych: <strong>{{ stats.mentees_tasks_completed }}</strong>.
                     </p>
                     <ul class="mb-0">
                         {% for mentee in mentees %}
-                            <li>
-                                <a href="{% url 'accounts:user_profile_detail' mentee.id %}">
-                                    {{ mentee.first_name }} {{ mentee.last_name }} ({{ mentee.email }})
+                            <li class="mb-1">
+                                <a href="{% url 'accounts:user_profile_detail' mentee.id %}" class="text-decoration-none">
+                                    🎓 {{ mentee.first_name }} {{ mentee.last_name }}
+                                    <span class="text-muted">({{ mentee.email }})</span>
                                 </a>
                             </li>
                         {% endfor %}
@@ -156,11 +423,13 @@
         </div>
     </div>
 </div>
+{% endwith %}
 
 {% if user_search %}
-<div class="card mt-4">
+<div class="card mt-4 shadow-sm">
     <div class="card-body">
         <p class="text-muted mb-2">
+            <i class="fas fa-search me-1"></i>
             Wyniki wyszukiwania z paska nawigacji dla: <strong>{{ user_search }}</strong> ({{ user_search_results|length }})
         </p>
         {% if user_search_results %}

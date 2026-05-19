@@ -26,6 +26,7 @@ from django.utils.dateparse import parse_date
 from django.views.decorators.http import require_http_methods
 
 from .decorators import hr_required, user_is_administrator_role
+from .hr_analytics import compute_hr_analytics, parse_hr_stats_period
 from .forms import (
     HrAddEmployeeForm,
     HrChangeEmailForm,
@@ -319,6 +320,17 @@ def hr_dashboard(request):
     db_export_form = HrDbExportForm()
     db_import_form = HrDbImportForm()
 
+    stats_from_raw = (request.GET.get("stats_from") or "").strip()
+    stats_to_raw = (request.GET.get("stats_to") or "").strip()
+    stats_all_time = request.GET.get("stats_all") == "1"
+    stats_date_from, stats_date_to, stats_from, stats_to = parse_hr_stats_period(
+        stats_from_raw,
+        stats_to_raw,
+        apply_default=not stats_all_time and not stats_from_raw and not stats_to_raw,
+        all_time=stats_all_time,
+    )
+    hr_analytics = compute_hr_analytics(stats_date_from, stats_date_to)
+
     return render(
         request,
         "accounts/hr_dashboard.html",
@@ -339,6 +351,10 @@ def hr_dashboard(request):
             "querystring_no_page": querystring_no_page,
             "db_export_form": db_export_form,
             "db_import_form": db_import_form,
+            "stats_from": stats_from,
+            "stats_to": stats_to,
+            "stats_all_time": stats_all_time,
+            "hr_analytics": hr_analytics,
         },
     )
 
