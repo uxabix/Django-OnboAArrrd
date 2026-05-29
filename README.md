@@ -1,6 +1,12 @@
 # 🐣 OnboAArrrd
 
-An onboarding platform designed to help new employees integrate smoothly into a company, built with **Django**, **PostgreSQL**, and **Docker**.  
+An onboarding platform designed to help new employees integrate smoothly into a company, built with **Django**, **PostgreSQL**, and **Docker**.
+
+## Database schema
+
+![Database ERD](DB%20Diagram/erd.png)
+
+Regenerate with `python manage.py db_diagram` (see [docs/database/README.md](docs/database/README.md)).
 
 --- 
 

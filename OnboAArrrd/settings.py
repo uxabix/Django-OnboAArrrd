@@ -38,6 +38,7 @@ INSTALLED_APPS = [
     "chat",
     "onboarding",
     "core",
+    "django_extensions",
 ]
 
 MIDDLEWARE = [

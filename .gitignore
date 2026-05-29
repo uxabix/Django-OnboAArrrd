@@ -16,6 +16,9 @@ venv/
 staticfiles/
 media/
 
+# Local ERD scratch output (committed copies live in DB Diagram/)
+erd_outputs/
+
 # VSCode / PyCharm
 .idea/
 .vscode/

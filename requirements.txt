@@ -6,6 +6,9 @@ uvicorn
 psycopg2-binary
 Pillow
 
+# Database diagrams (graph_models + Graphviz system package)
+django-extensions>=4.1
+
 # Documentation (Sphinx)
 sphinx>=7.0
 sphinx-rtd-theme>=2.0
