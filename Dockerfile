@@ -4,7 +4,8 @@ FROM python:3.11-slim
 RUN apt-get update && apt-get install -y \
     libjpeg-dev \
     zlib1g-dev \
-    libpng-dev
+    libpng-dev \
+    graphviz
 
 WORKDIR /app
 

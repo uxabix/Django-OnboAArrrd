@@ -10,26 +10,42 @@
                 <h1 class="card-title mb-4">Witaj, {{ user.first_name|default:"Użytkowniku" }}!</h1>
                 
                 <div class="d-grid gap-3 col-lg-6 mx-auto mt-4">
+                    {% if user_can_access_hr %}
+                        <a href="{% url 'accounts:hr_dashboard' %}" class="btn btn-success btn-lg">
+                            <i class="fas fa-briefcase me-2"></i>Panel kadrowy (HR)
+                        </a>
+                    {% endif %}
+                    <a href="{% url 'accounts:user_profile' %}" class="btn btn-outline-secondary btn-lg">
+                        <i class="fas fa-id-card me-2"></i>Mój profil
+                    </a>
                     <a href="{% url 'onboarding:user_tasks_list' %}" class="btn btn-primary btn-lg">
                         <i class="fas fa-tasks me-2"></i>Moje zadania
                     </a>
-                    
+
+                    <a href="{% url 'onboarding:user_tasks_calendar' %}" class="btn btn-outline-primary btn-lg">
+                        <i class="fas fa-calendar-alt me-2"></i>Kalendarz zadań
+                    </a>
+
                     <a href="{% url 'onboarding:user_competency_paths_with_tasks' %}" class="btn btn-outline-primary btn-lg">
                         <i class="fas fa-route me-2"></i>Moje ścieżki kompetencji
                     </a>
                     
                     {% if user.is_mentor %}
-                        <a href="{% url 'chat:chat_mentor_default' %}" class="btn btn-info btn-lg text-white">
-                            <i class="fas fa-comments me-2"></i>Czat z moimi studentami
+                        <a href="{% url 'chat:chat_inbox' %}" class="btn btn-info btn-lg text-white">
+                            <i class="fas fa-comments me-2"></i>Czat
                         </a>
                         <a href="{% url 'onboarding:mentor_task_management' %}" class="btn btn-dark btn-lg">
                             <i class="fas fa-user-tie me-2"></i>Panel zarządzania zadaniami
                         </a>
                     {% else %}
-                        <a href="{% url 'chat:chat_student' %}" class="btn btn-info btn-lg text-white">
-                            <i class="fas fa-comment me-2"></i>Mój czat
+                        <a href="{% url 'chat:chat_inbox' %}" class="btn btn-info btn-lg text-white">
+                            <i class="fas fa-comment me-2"></i>Czat
                         </a>
                     {% endif %}
+
+                    <a href="{% url 'accounts:mentor_ranking' %}" class="btn btn-warning btn-lg">
+                        <i class="fas fa-trophy me-2"></i>Ranking mentorów
+                    </a>
                 </div>
             </div>
         </div>

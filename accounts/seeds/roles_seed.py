@@ -1,8 +1,11 @@
+"""Create baseline ``Roles`` rows for local development."""
+
 from accounts.models import Roles
 
 def run(count=10, group=None):
     roles_data = [
         {"name": "Admin", "description": "Administrator with full access"},
+        {"name": "HR", "description": "Human resources — employee management panel"},
         {"name": "Mentor", "description": "Mentor who guides students"},
         {"name": "Student", "description": "Regular student user"},
     ]

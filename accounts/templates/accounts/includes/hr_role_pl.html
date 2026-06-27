@@ -1,0 +1,5 @@
+{% if role %}
+{% with n=role.name|default:""|lower %}
+{% if n == "student" %}Uczeń{% elif n == "mentor" %}Mentor{% elif n == "hr" %}HR{% elif n == "admin" %}Administrator{% else %}{{ role.name }}{% endif %}
+{% endwith %}
+{% else %}—{% endif %}

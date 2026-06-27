@@ -1,3 +1,5 @@
+"""Generate lightweight report metadata for demo accounts."""
+
 import random
 from onboarding.models import Reports
 from django.contrib.auth import get_user_model
@@ -12,7 +14,7 @@ def run(count=10, group=None):
 
     reports_created = 0
 
-    for i in range(count):
+    for i in range(min(count, 8)):
         generated_by = random.choice(users)
         user = random.choice([u for u in users if u != generated_by])
 

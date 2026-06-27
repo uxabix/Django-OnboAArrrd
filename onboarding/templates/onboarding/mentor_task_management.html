@@ -42,6 +42,9 @@
                             {{ selected_student.first_name }} {{ selected_student.last_name }}
                         </h2>
                         <div class="btn-group">
+                            <a href="{% url 'accounts:user_profile_detail' selected_student.id %}" class="btn btn-outline-secondary">
+                                <i class="fas fa-id-card me-1"></i> Profil
+                            </a>
                             <a href="{% url 'chat:chat_mentor' selected_student.id %}" class="btn btn-outline-primary">
                                 <i class="fas fa-comment me-1"></i> Czat
                             </a>
@@ -107,6 +110,10 @@
                                                    class="btn btn-outline-danger btn-sm" title="Usuń przypisanie">
                                                     <i class="fas fa-trash"></i>
                                                 </a>
+                                                <a href="{% url 'chat:chat_inbox_user' selected_student.id %}?ctx_type=path&ctx_id={{ user_path.user_path_id }}"
+                                                   class="btn btn-outline-primary btn-sm" title="Czat o ścieżce">
+                                                    <i class="fas fa-comment-dots"></i>
+                                                </a>
                                             </td>
                                         </tr>
                                     {% endfor %}
@@ -132,15 +139,51 @@
                         </div>
                     </div>
 
+                    <!-- Podsumowanie terminowości -->
+                    <div class="row g-2 mb-3">
+                        <div class="col-6 col-md-3">
+                            <div class="card border-success h-100">
+                                <div class="card-body py-2 text-center">
+                                    <div class="text-success small text-uppercase">Oddane w terminie</div>
+                                    <div class="h5 mb-0 fw-bold">{{ deadline_summary.on_time|default:0 }}</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <div class="card border-warning h-100">
+                                <div class="card-body py-2 text-center">
+                                    <div class="text-warning small text-uppercase">Oddane po terminie</div>
+                                    <div class="h5 mb-0 fw-bold">{{ deadline_summary.late|default:0 }}</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <div class="card border-danger h-100">
+                                <div class="card-body py-2 text-center">
+                                    <div class="text-danger small text-uppercase">Przeterminowane</div>
+                                    <div class="h5 mb-0 fw-bold">{{ deadline_summary.overdue|default:0 }}</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <div class="card border-info h-100">
+                                <div class="card-body py-2 text-center">
+                                    <div class="text-info small text-uppercase">Zbliża się termin</div>
+                                    <div class="h5 mb-0 fw-bold">{{ deadline_summary.approaching|default:0 }}</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Search and sort tasks -->
                     <form method="GET" class="row g-2 mb-3">
-                        <div class="col-md-4">
+                        <div class="col-md-3">
                             <div class="input-group input-group-sm">
                                 <span class="input-group-text"><i class="fas fa-search"></i></span>
                                 <input type="text" name="task_search" value="{{ task_search }}" class="form-control" placeholder="Szukaj zadania...">
                             </div>
                         </div>
-                        <div class="col-md-3">
+                        <div class="col-md-2">
                             <select name="task_sort" class="form-select form-select-sm">
                                 <option value="-created_at" {% if task_sort == '-created_at' %}selected{% endif %}>Najnowsze</option>
                                 <option value="created_at" {% if task_sort == 'created_at' %}selected{% endif %}>Najstarsze</option>
@@ -158,103 +201,245 @@
                                 {% endfor %}
                             </select>
                         </div>
-                        <div class="col-md-2 d-grid">
+                        <div class="col-md-3">
+                            <select name="deadline_state" class="form-select form-select-sm">
+                                {% for value, label in deadline_filter_options %}
+                                    <option value="{{ value }}" {% if deadline_filter == value %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-1">
+                            <div class="form-check form-switch mt-2">
+                                <input class="form-check-input" type="checkbox" role="switch" id="group_by_path" name="group_by_path" value="1" {% if group_by_path %}checked{% endif %}>
+                                <label class="form-check-label small" for="group_by_path">Grupuj</label>
+                            </div>
+                        </div>
+                        <div class="col-md-1 d-grid">
                             <button type="submit" class="btn btn-secondary btn-sm">Filtruj</button>
                         </div>
                     </form>
 
                     {% if tasks_page_obj %}
-                        <div class="table-responsive">
-                            <table class="table table-hover align-middle">
-                                <thead class="table-light">
-                                    <tr>
-                                        <th>Zadanie / Ścieżka</th>
-                                        <th>Termin</th>
-                                        <th>Status</th>
-                                        <th class="text-end">Akcje</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {% for item in tasks_page_obj %}
-                                        <tr>
-                                            <td>
-                                                <div class="fw-bold text-primary">{{ item.user_task.task_id.title }}</div>
-                                                <small class="text-muted">
-                                                    {% if item.user_task.task_id.path %}
-                                                        <i class="fas fa-route me-1 small"></i>{{ item.user_task.task_id.path.name }}
-                                                    {% else %}
-                                                        <span class="fst-italic text-warning small">Brak ścieżki</span>
-                                                    {% endif %}
-                                                </small>
-                                            </td>
-                                            <td>
-                                                <span class="small {% if item.user_task.deadline < now and item.current_status != 'ZROBIONE' %}text-danger fw-bold{% endif %}">
-                                                    {{ item.user_task.deadline|date:"d.m.Y" }}
-                                                </span>
-                                            </td>
-                                            <td>
-                                                <span class="badge rounded-pill 
-                                                    {% if item.current_status == 'DO_ZROBIENIA' %}bg-secondary
-                                                    {% elif item.current_status == 'W_TRAKCIE' %}bg-primary
-                                                    {% elif item.current_status == 'DO_POPRAWY' %}bg-warning text-dark
-                                                    {% elif item.current_status == 'ZROBIONE' %}bg-success
-                                                    {% endif %}">
-                                                    {{ item.current_status }}
-                                                </span>
-                                            </td>
-                                            <td class="text-end">
-                                                <div class="btn-group btn-group-sm">
-                                                    {% if user.id == item.user_task.assigned_by_id %}
-                                                        <button type="button" class="btn btn-outline-info" 
-                                                                data-bs-toggle="modal" data-bs-target="#statusModal-{{ item.user_task.user_tasks_id }}"
-                                                                title="Zmień status">
-                                                            <i class="fas fa-sync-alt"></i>
-                                                        </button>
-                                                    {% endif %}
-                                                    <a href="{% url 'onboarding:mentor_edit_task' item.user_task.task_id.task_id %}" 
-                                                       class="btn btn-outline-secondary" title="Edytuj">
-                                                        <i class="fas fa-edit"></i>
-                                                    </a>
-                                                    <a href="{% url 'onboarding:mentor_delete_user_task' item.user_task.user_tasks_id %}" 
-                                                       class="btn btn-outline-danger" title="Usuń">
-                                                        <i class="fas fa-trash"></i>
-                                                    </a>
+                        {% if group_by_path %}
+                            <div class="accordion" id="mentorTaskGroups">
+                                {% for group in tasks_grouped_by_path %}
+                                    <div class="accordion-item mb-3 shadow-sm">
+                                        <h2 class="accordion-header" id="groupHeading{{ forloop.counter }}">
+                                            <button class="accordion-button {% if not forloop.first %}collapsed{% endif %}" type="button" data-bs-toggle="collapse" data-bs-target="#groupCollapse{{ forloop.counter }}">
+                                                <strong>{{ group.label }}</strong>&nbsp;<span class="text-muted">({{ group.count }})</span>
+                                            </button>
+                                        </h2>
+                                        <div id="groupCollapse{{ forloop.counter }}" class="accordion-collapse collapse {% if forloop.first %}show{% endif %}" data-bs-parent="#mentorTaskGroups">
+                                            <div class="accordion-body p-0">
+                                                <div class="table-responsive">
+                                                    <table class="table table-hover align-middle mb-0">
+                                                        <thead class="table-light">
+                                                            <tr>
+                                                                <th>Zadanie</th>
+                                                                <th>Termin</th>
+                                                                <th>Terminowość</th>
+                                                                <th>Status</th>
+                                                                <th class="text-end">Akcje</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            {% for item in group.tasks %}
+                                                                <tr>
+                                                                    <td class="fw-bold text-primary">{{ item.user_task.task_id.title }}</td>
+                                                                    <td><i class="far fa-calendar-alt me-1 text-muted"></i>{{ item.user_task.deadline|date:"d.m.Y" }}</td>
+                                                                    <td>
+                                                                        {% if item.deadline_state == 'on_time' %}
+                                                                            <span class="badge rounded-pill bg-success">W terminie</span>
+                                                                        {% elif item.deadline_state == 'late' %}
+                                                                            <span class="badge rounded-pill bg-warning text-dark">Po terminie</span>
+                                                                        {% elif item.deadline_state == 'overdue' %}
+                                                                            <span class="badge rounded-pill bg-danger">Przeterminowane</span>
+                                                                        {% elif item.deadline_state == 'approaching' %}
+                                                                            <span class="badge rounded-pill bg-info text-dark">Zbliża się</span>
+                                                                        {% else %}
+                                                                            <span class="badge rounded-pill bg-light text-dark border">W trakcie</span>
+                                                                        {% endif %}
+                                                                    </td>
+                                                                    <td>
+                                                                        <span class="badge rounded-pill
+                                                                            {% if item.current_status == 'do zrobienia' %}bg-secondary
+                                                                            {% elif item.current_status == 'w trakcie' %}bg-primary
+                                                                            {% elif item.current_status == 'do weryfikacji' %}bg-warning text-dark
+                                                                            {% elif item.current_status == 'ukończone' %}bg-success
+                                                                            {% else %}bg-light text-dark{% endif %}">
+                                                                            {{ item.current_status }}
+                                                                        </span>
+                                                                    </td>
+                                                                    <td class="text-end">
+                                                                        <div class="btn-group btn-group-sm">
+                                                                            {% if user.id == item.user_task.assigned_by_id %}
+                                                                                <button type="button" class="btn btn-outline-info" data-bs-toggle="modal" data-bs-target="#statusModal-{{ item.user_task.user_tasks_id }}" title="Zmień status">
+                                                                                    <i class="fas fa-sync-alt"></i>
+                                                                                </button>
+                                                                            {% endif %}
+                                                                            <a href="{% url 'onboarding:mentor_edit_task' item.user_task.task_id.task_id %}" class="btn btn-outline-secondary" title="Edytuj">
+                                                                                <i class="fas fa-edit"></i>
+                                                                            </a>
+                                                                            <a href="{% url 'onboarding:mentor_delete_user_task' item.user_task.user_tasks_id %}" class="btn btn-outline-danger" title="Usuń">
+                                                                                <i class="fas fa-trash"></i>
+                                                                            </a>
+                                                                            <a href="{% url 'chat:chat_inbox_user' selected_student.id %}?ctx_type=task&ctx_id={{ item.user_task.user_tasks_id }}" class="btn btn-outline-primary" title="Czat o zadaniu">
+                                                                                <i class="fas fa-comment-dots"></i>
+                                                                            </a>
+                                                                        </div>
+                                                                        {% if user.id == item.user_task.assigned_by_id %}
+                                                                        <div class="modal fade" id="statusModal-{{ item.user_task.user_tasks_id }}" tabindex="-1" aria-hidden="true text-start">
+                                                                            <div class="modal-dialog modal-sm">
+                                                                                <div class="modal-content">
+                                                                                    <div class="modal-header">
+                                                                                        <h5 class="modal-title">Zmień status</h5>
+                                                                                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                                                                    </div>
+                                                                                    <form method="post" action="{% url 'onboarding:mentor_change_user_task_status' item.user_task.user_tasks_id %}">
+                                                                                        {% csrf_token %}
+                                                                                        <div class="modal-body text-start">
+                                                                                            <label class="form-label">Nowy status:</label>
+                                                                                            <select name="new_status" class="form-select">
+                                                                                                {% for status_value, status_label in task_statuses %}
+                                                                                                    <option value="{{ status_value }}" {% if item.current_status == status_value %}selected{% endif %}>{{ status_label }}</option>
+                                                                                                {% endfor %}
+                                                                                            </select>
+                                                                                        </div>
+                                                                                        <div class="modal-footer">
+                                                                                            <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Anuluj</button>
+                                                                                            <button type="submit" class="btn btn-primary btn-sm">Zapisz</button>
+                                                                                        </div>
+                                                                                    </form>
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                        {% endif %}
+                                                                    </td>
+                                                                </tr>
+                                                            {% endfor %}
+                                                        </tbody>
+                                                    </table>
                                                 </div>
-
-                                                {% if user.id == item.user_task.assigned_by_id %}
-                                                <!-- Status Change Modal -->
-                                                <div class="modal fade" id="statusModal-{{ item.user_task.user_tasks_id }}" tabindex="-1" aria-hidden="true text-start">
-                                                    <div class="modal-dialog modal-sm">
-                                                        <div class="modal-content">
-                                                            <div class="modal-header">
-                                                                <h5 class="modal-title">Zmień status</h5>
-                                                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <div class="table-responsive">
+                                <table class="table table-hover align-middle">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Zadanie / Ścieżka</th>
+                                            <th>Termin</th>
+                                            <th>Terminowość</th>
+                                            <th>Status</th>
+                                            <th class="text-end">Akcje</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for item in tasks_page_obj %}
+                                            <tr>
+                                                <td>
+                                                    <div class="fw-bold text-primary">{{ item.user_task.task_id.title }}</div>
+                                                    <small class="text-muted">
+                                                        {% if item.user_task.task_id.path %}
+                                                            <i class="fas fa-route me-1 small"></i>{{ item.user_task.task_id.path.name }}
+                                                        {% else %}
+                                                            <span class="fst-italic text-warning small">Brak ścieżki</span>
+                                                        {% endif %}
+                                                    </small>
+                                                </td>
+                                                <td>
+                                                    <div>
+                                                        <i class="far fa-calendar-alt me-1 text-muted"></i>
+                                                        {{ item.user_task.deadline|date:"d.m.Y" }}
+                                                    </div>
+                                                </td>
+                                                <td>
+                                                    {% if item.deadline_state == 'on_time' %}
+                                                        <span class="badge rounded-pill bg-success">
+                                                            <i class="fas fa-check me-1"></i>W terminie
+                                                        </span>
+                                                    {% elif item.deadline_state == 'late' %}
+                                                        <span class="badge rounded-pill bg-warning text-dark">
+                                                            <i class="fas fa-exclamation me-1"></i>Po terminie
+                                                        </span>
+                                                    {% elif item.deadline_state == 'overdue' %}
+                                                        <span class="badge rounded-pill bg-danger">
+                                                            <i class="fas fa-times me-1"></i>Przeterminowane
+                                                        </span>
+                                                    {% elif item.deadline_state == 'approaching' %}
+                                                        <span class="badge rounded-pill bg-info text-dark">
+                                                            <i class="fas fa-clock me-1"></i>Zbliża się
+                                                        </span>
+                                                    {% else %}
+                                                        <span class="badge rounded-pill bg-light text-dark border">
+                                                            <i class="fas fa-hourglass-half me-1"></i>W trakcie
+                                                        </span>
+                                                    {% endif %}
+                                                </td>
+                                                <td>
+                                                    <span class="badge rounded-pill
+                                                        {% if item.current_status == 'do zrobienia' %}bg-secondary
+                                                        {% elif item.current_status == 'w trakcie' %}bg-primary
+                                                        {% elif item.current_status == 'do weryfikacji' %}bg-warning text-dark
+                                                        {% elif item.current_status == 'ukończone' %}bg-success
+                                                        {% else %}bg-light text-dark{% endif %}">
+                                                        {{ item.current_status }}
+                                                    </span>
+                                                </td>
+                                                <td class="text-end">
+                                                    <div class="btn-group btn-group-sm">
+                                                        {% if user.id == item.user_task.assigned_by_id %}
+                                                            <button type="button" class="btn btn-outline-info" data-bs-toggle="modal" data-bs-target="#statusModal-{{ item.user_task.user_tasks_id }}" title="Zmień status">
+                                                                <i class="fas fa-sync-alt"></i>
+                                                            </button>
+                                                        {% endif %}
+                                                        <a href="{% url 'onboarding:mentor_edit_task' item.user_task.task_id.task_id %}" class="btn btn-outline-secondary" title="Edytuj">
+                                                            <i class="fas fa-edit"></i>
+                                                        </a>
+                                                        <a href="{% url 'onboarding:mentor_delete_user_task' item.user_task.user_tasks_id %}" class="btn btn-outline-danger" title="Usuń">
+                                                            <i class="fas fa-trash"></i>
+                                                        </a>
+                                                        <a href="{% url 'chat:chat_inbox_user' selected_student.id %}?ctx_type=task&ctx_id={{ item.user_task.user_tasks_id }}" class="btn btn-outline-primary" title="Czat o zadaniu">
+                                                            <i class="fas fa-comment-dots"></i>
+                                                        </a>
+                                                    </div>
+                                                    {% if user.id == item.user_task.assigned_by_id %}
+                                                    <div class="modal fade" id="statusModal-{{ item.user_task.user_tasks_id }}" tabindex="-1" aria-hidden="true text-start">
+                                                        <div class="modal-dialog modal-sm">
+                                                            <div class="modal-content">
+                                                                <div class="modal-header">
+                                                                    <h5 class="modal-title">Zmień status</h5>
+                                                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                                                </div>
+                                                                <form method="post" action="{% url 'onboarding:mentor_change_user_task_status' item.user_task.user_tasks_id %}">
+                                                                    {% csrf_token %}
+                                                                    <div class="modal-body text-start">
+                                                                        <label class="form-label">Nowy status:</label>
+                                                                        <select name="new_status" class="form-select">
+                                                                            {% for status_value, status_label in task_statuses %}
+                                                                                <option value="{{ status_value }}" {% if item.current_status == status_value %}selected{% endif %}>{{ status_label }}</option>
+                                                                            {% endfor %}
+                                                                        </select>
+                                                                    </div>
+                                                                    <div class="modal-footer">
+                                                                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Anuluj</button>
+                                                                        <button type="submit" class="btn btn-primary btn-sm">Zapisz</button>
+                                                                    </div>
+                                                                </form>
                                                             </div>
-                                                            <form method="post" action="{% url 'onboarding:mentor_change_user_task_status' item.user_task.user_tasks_id %}">
-                                                                {% csrf_token %}
-                                                                <div class="modal-body text-start">
-                                                                    <label class="form-label">Nowy status:</label>
-                                                                    <select name="new_status" class="form-select">
-                                                                        {% for status_value, status_label in task_statuses %}
-                                                                            <option value="{{ status_value }}" {% if item.current_status == status_value %}selected{% endif %}>{{ status_label }}</option>
-                                                                        {% endfor %}
-                                                                    </select>
-                                                                </div>
-                                                                <div class="modal-footer">
-                                                                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Anuluj</button>
-                                                                    <button type="submit" class="btn btn-primary btn-sm">Zapisz</button>
-                                                                </div>
-                                                            </form>
                                                         </div>
                                                     </div>
-                                                </div>
-                                                {% endif %}
-                                            </td>
-                                        </tr>
-                                    {% endfor %}
-                                </tbody>
-                            </table>
-                        </div>
+                                                    {% endif %}
+                                                </td>
+                                            </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        {% endif %}
                     {% else %}
                         <div class="alert alert-light border text-center small py-2">Brak zadań pasujących do filtrów.</div>
                     {% endif %}

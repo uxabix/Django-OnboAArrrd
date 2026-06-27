@@ -1,0 +1,241 @@
+{% extends "base.html" %}
+
+{% block title %}Kalendarz zadań{% endblock %}
+
+{% block extra_css %}
+<style>
+    .calendar-table {
+        table-layout: fixed;
+        width: 100%;
+    }
+    .calendar-table th {
+        text-align: center;
+        background-color: #f1f3f5;
+    }
+    .calendar-day {
+        height: 110px;
+        vertical-align: top;
+        position: relative;
+        padding: 4px;
+    }
+    .calendar-day.outside {
+        background-color: #f8f9fa;
+        color: #adb5bd;
+    }
+    .calendar-day.today {
+        background-color: #e7f1ff;
+    }
+    .calendar-day .day-number {
+        font-weight: bold;
+        font-size: 0.9rem;
+    }
+    .calendar-day .task-pill {
+        display: block;
+        font-size: 0.7rem;
+        padding: 1px 5px;
+        margin-top: 2px;
+        border-radius: 4px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        text-decoration: none;
+        color: #fff;
+    }
+    .calendar-day .task-pill.on_time { background-color: #198754; }
+    .calendar-day .task-pill.late { background-color: #fd7e14; }
+    .calendar-day .task-pill.overdue { background-color: #dc3545; }
+    .calendar-day .task-pill.approaching { background-color: #0dcaf0; color: #000; }
+    .calendar-day .task-pill.on_track { background-color: #6c757d; }
+    .calendar-day .task-pill.mentee-task {
+        border: 1px dashed rgba(0, 0, 0, 0.35);
+        font-style: italic;
+    }
+    .legend-dot {
+        display: inline-block;
+        width: 12px;
+        height: 12px;
+        border-radius: 2px;
+        margin-right: 4px;
+        vertical-align: middle;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-11 offset-md-1">
+        <div class="card shadow-sm">
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <h2 class="mb-0"><i class="fas fa-calendar-alt me-2"></i>Kalendarz zadań</h2>
+                <div class="btn-group btn-group-sm">
+                    <a href="{% url 'onboarding:user_tasks_list' %}" class="btn btn-light">
+                        <i class="fas fa-list me-1"></i> Widok listy
+                    </a>
+                    <a href="{% url 'onboarding:user_tasks_calendar_month' today_year today_month %}{% if calendar_filter_querystring %}?{{ calendar_filter_querystring }}{% endif %}"
+                       class="btn btn-outline-light">
+                        <i class="fas fa-calendar-day me-1"></i> Dzisiaj
+                    </a>
+                </div>
+            </div>
+            <div class="card-body">
+
+                <form method="get" class="row g-2 mb-3">
+                    <div class="col-md-3">
+                        <label class="form-label small mb-1">Terminowość</label>
+                        <select name="deadline_filter" class="form-select form-select-sm">
+                            {% for value, label in deadline_filter_choices %}
+                                <option value="{{ value }}" {% if deadline_filter == value %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small mb-1">Status zadania</label>
+                        <select name="status_filter" class="form-select form-select-sm">
+                            <option value="all" {% if status_filter == "all" %}selected{% endif %}>Wszystkie</option>
+                            {% for value, label in status_choices %}
+                                <option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label small mb-1">Ścieżka</label>
+                        <select name="path_filter" class="form-select form-select-sm">
+                            {% for value, label in path_choices.items %}
+                                <option value="{{ value }}" {% if path_filter == value %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small mb-1">Typ zadania</label>
+                        <select name="task_type_filter" class="form-select form-select-sm">
+                            {% for value, label in task_type_choices.items %}
+                                <option value="{{ value }}" {% if task_type_filter == value %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    {% if is_mentor %}
+                    <div class="col-md-2">
+                        <label class="form-label small mb-1">Źródło</label>
+                        <select name="source_filter" class="form-select form-select-sm">
+                            <option value="all" {% if source_filter == "all" %}selected{% endif %}>Wszystkie</option>
+                            <option value="own" {% if source_filter == "own" %}selected{% endif %}>Moje</option>
+                            <option value="mentee" {% if source_filter == "mentee" %}selected{% endif %}>Uczniów</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label small mb-1">Filtr uczniów</label>
+                        <select name="mentor_students_mode" class="form-select form-select-sm">
+                            <option value="all" {% if mentor_students_mode == "all" %}selected{% endif %}>Bez filtrowania</option>
+                            <option value="only" {% if mentor_students_mode == "only" %}selected{% endif %}>Pokaż tylko wybranych</option>
+                            <option value="exclude" {% if mentor_students_mode == "exclude" %}selected{% endif %}>Ukryj wybranych</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small mb-1">Wybrani uczniowie</label>
+                        <select name="students" class="form-select form-select-sm" multiple size="2">
+                            {% for student in mentee_students %}
+                                <option value="{{ student.id }}" {% if student.id in selected_student_ids %}selected{% endif %}>
+                                    {{ student.first_name }} {{ student.last_name }} ({{ student.email }})
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    {% endif %}
+                    <div class="col-12 d-flex align-items-center gap-2">
+                        <button class="btn btn-sm btn-primary" type="submit"><i class="fas fa-filter me-1"></i>Filtruj</button>
+                        <a href="{% url 'onboarding:user_tasks_calendar_month' year month %}" class="btn btn-sm btn-outline-secondary">Wyczyść</a>
+                        <span class="small text-muted">Zadań po filtrach: {{ filtered_items_count }}</span>
+                    </div>
+                </form>
+
+                {% if reminders %}
+                    <div class="alert alert-warning border-warning">
+                        <h5 class="alert-heading mb-2">
+                            <i class="fas fa-bell me-2"></i>Przypomnienia o zbliżających się terminach
+                        </h5>
+                        <ul class="mb-0">
+                            {% for item in reminders %}
+                                <li>
+                                    <a href="{% url 'onboarding:user_task_detail' item.user_task.user_tasks_id %}" class="fw-bold">
+                                        {{ item.user_task.task_id.title }}
+                                    </a>
+                                    — termin: <strong>{{ item.user_task.deadline|date:"d.m.Y" }}</strong>
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                {% endif %}
+
+                <!-- Nawigacja po miesiącach -->
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <a href="{% url 'onboarding:user_tasks_calendar_month' prev_year prev_month %}{% if calendar_filter_querystring %}?{{ calendar_filter_querystring }}{% endif %}"
+                       class="btn btn-outline-secondary btn-sm">
+                        <i class="fas fa-chevron-left me-1"></i> Poprzedni
+                    </a>
+                    <h3 class="mb-0">{{ month_name }} {{ year }}</h3>
+                    <a href="{% url 'onboarding:user_tasks_calendar_month' next_year next_month %}{% if calendar_filter_querystring %}?{{ calendar_filter_querystring }}{% endif %}"
+                       class="btn btn-outline-secondary btn-sm">
+                        Następny <i class="fas fa-chevron-right ms-1"></i>
+                    </a>
+                </div>
+
+                <!-- Legenda -->
+                <div class="mb-3 small">
+                    <span class="me-3"><span class="legend-dot" style="background:#6c757d"></span>W trakcie</span>
+                    <span class="me-3"><span class="legend-dot" style="background:#0dcaf0"></span>Zbliża się</span>
+                    <span class="me-3"><span class="legend-dot" style="background:#dc3545"></span>Przeterminowane</span>
+                    <span class="me-3"><span class="legend-dot" style="background:#198754"></span>Oddane w terminie</span>
+                    <span class="me-3"><span class="legend-dot" style="background:#fd7e14"></span>Po terminie</span>
+                    {% if is_mentor %}
+                        <span class="me-3"><span class="legend-dot" style="background:#adb5bd; border:1px dashed #6c757d"></span>Zadanie ucznia</span>
+                    {% endif %}
+                </div>
+
+                <!-- Tabela kalendarza -->
+                <div class="table-responsive">
+                    <table class="table table-bordered calendar-table mb-0">
+                        <thead>
+                            <tr>
+                                {% for day_name in weekday_names %}
+                                    <th>{{ day_name }}</th>
+                                {% endfor %}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for week in weeks %}
+                                <tr>
+                                    {% for day in week %}
+                                        <td class="calendar-day {% if not day.in_month %}outside{% endif %} {% if day.is_today %}today{% endif %}">
+                                            <div class="day-number">{{ day.date.day }}</div>
+                                            {% for item in day.tasks %}
+                                                {% if item.is_mentee_task %}
+                                                    <span class="task-pill {{ item.state }} mentee-task"
+                                                          title="{{ item.student_name }}: {{ item.user_task.task_id.title }} ({{ item.current_status }})">
+                                                        {{ item.student_name }}: {{ item.user_task.task_id.title }}
+                                                    </span>
+                                                {% else %}
+                                                    <a href="{% url 'onboarding:user_task_detail' item.user_task.user_tasks_id %}"
+                                                       class="task-pill {{ item.state }}"
+                                                       title="{{ item.user_task.task_id.title }} ({{ item.current_status }})">
+                                                        {{ item.user_task.task_id.title }}
+                                                    </a>
+                                                {% endif %}
+                                            {% endfor %}
+                                        </td>
+                                    {% endfor %}
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="mt-4">
+                    <a href="{% url 'accounts:logged' %}" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left me-1"></i> Powrót do panelu
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

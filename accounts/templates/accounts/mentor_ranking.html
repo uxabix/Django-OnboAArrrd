@@ -1,0 +1,215 @@
+{% extends "base.html" %}
+
+{% block title %}Ranking Mentorów - OnboAArrrd{% endblock %}
+
+{% block extra_css %}
+<style>
+    .mentor-ranking-filters .form-label {
+        font-size: 0.875rem;
+    }
+    .mentor-ranking-metric-active {
+        font-weight: 700;
+        color: #0d6efd;
+    }
+    .mentor-ranking-table thead th.mentor-ranking-metric-col {
+        background-color: #f8f9fa;
+        color: #212529;
+        box-shadow: inset 0 -2px 0 #0d6efd;
+    }
+    .mentor-ranking-table thead th.mentor-ranking-metric-col .metric-col-hint {
+        display: block;
+        font-size: 0.7rem;
+        font-weight: 400;
+        color: #6c757d;
+        margin-top: 0.1rem;
+    }
+    .mentor-ranking-table td.mentor-ranking-metric-col {
+        background-color: #f8f9fa;
+        font-weight: 600;
+        color: #0d6efd;
+    }
+    .mentor-ranking-table.table-striped > tbody > tr:nth-of-type(odd) > td.mentor-ranking-metric-col {
+        background-color: #eef2f6;
+    }
+    .mentor-ranking-table.table-hover > tbody > tr:hover > td.mentor-ranking-metric-col {
+        background-color: #e9ecef;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-11 col-xl-10">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+                        <h2 class="h4 mb-0">
+                            <i class="fas fa-trophy me-2"></i>Ranking mentorów
+                        </h2>
+                        <small class="text-white-50">
+                            Okres:
+                            {% if period_from %}{{ period_from|date:"Y-m-d" }}{% else %}cała historia{% endif %}
+                            {% if period_from or period_to %}–{% endif %}
+                            {% if period_to %}{{ period_to|date:"Y-m-d" }}{% elif period_from %}—{% endif %}
+                        </small>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <form method="get" action="{% url 'accounts:mentor_ranking' %}" class="mentor-ranking-filters row g-3 align-items-end mb-4">
+                        <div class="col-md-4 col-lg-3">
+                            <label class="form-label" for="ranking_metric">Kryterium rankingu</label>
+                            <select class="form-select" id="ranking_metric" name="metric">
+                                {% for key, meta in metric_choices.items %}
+                                    <option value="{{ key }}"{% if metric == key %} selected{% endif %}>
+                                        {{ meta.label }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-4 col-lg-2">
+                            <label class="form-label" for="ranking_stats_from">Przypisania od</label>
+                            <input type="date" class="form-control" id="ranking_stats_from" name="stats_from" value="{{ stats_from }}">
+                        </div>
+                        <div class="col-md-4 col-lg-2">
+                            <label class="form-label" for="ranking_stats_to">Przypisania do</label>
+                            <input type="date" class="form-control" id="ranking_stats_to" name="stats_to" value="{{ stats_to }}">
+                        </div>
+                        <div class="col-12 col-lg-auto d-flex flex-wrap gap-2">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-sort-amount-down me-1"></i>Zastosuj
+                            </button>
+                            <a href="{% url 'accounts:mentor_ranking' %}?metric={{ metric }}&stats_all=1" class="btn btn-outline-secondary">
+                                Cały okres
+                            </a>
+                        </div>
+                    </form>
+
+                    <p class="text-muted small mb-3">
+                        <span class="mentor-ranking-metric-active">{{ metric_meta.label }}:</span>
+                        {{ metric_meta.description }}
+                        {% if metric_meta.uses_period %}
+                            Statystyki w tabeli (poza gwiazdkami i podopiecznymi) dotyczą wybranego przedziału dat przypisań.
+                        {% endif %}
+                    </p>
+
+                    {% if page_obj.paginator.count %}
+                    <div class="table-responsive">
+                        <table class="table table-hover table-striped align-middle mb-0 mentor-ranking-table">
+                            <thead class="table-light">
+                                <tr>
+                                    <th scope="col">Miejsce</th>
+                                    <th scope="col">Mentor</th>
+                                    <th scope="col" class="mentor-ranking-metric-col">
+                                        {{ metric_meta.short_label }}
+                                        <span class="metric-col-hint">Według tego sortujemy</span>
+                                    </th>
+                                    <th scope="col">Gwiazdki</th>
+                                    <th scope="col">Podopieczni</th>
+                                    <th scope="col">Zadania</th>
+                                    <th scope="col">Ścieżki</th>
+                                    <th scope="col">Na czas</th>
+                                    <th scope="col">Indeks HR</th>
+                                    <th scope="col">Akcje</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for row in page_obj %}
+                                <tr>
+                                    <td>
+                                        <strong>#{{ page_obj.start_index|add:forloop.counter0 }}</strong>
+                                    </td>
+                                    <td>
+                                        <a href="{% url 'accounts:user_profile_detail' row.mentor.id %}" class="text-decoration-none">
+                                            <strong>{{ row.mentor.first_name }} {{ row.mentor.last_name }}</strong>
+                                        </a>
+                                        <br><small class="text-muted">{{ row.mentor.email }}</small>
+                                    </td>
+                                    <td class="mentor-ranking-metric-col">{{ row.rank_value_display }}</td>
+                                    <td>
+                                        <span class="badge bg-warning text-dark">{{ row.mentor.get_stars_display }}</span>
+                                        <br><small>{{ row.stars }}</small>
+                                    </td>
+                                    <td>{{ row.mentees_count }}</td>
+                                    <td>
+                                        {{ row.tasks_assigned }}
+                                        {% if row.completed_tasks %}
+                                            <br><small class="text-muted">{{ row.completed_tasks }} oddanych</small>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ row.paths_assigned }}</td>
+                                    <td>
+                                        {% if row.on_time_pct is not None %}
+                                            {{ row.on_time_pct }}%
+                                        {% else %}
+                                            <span class="text-muted">—</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if row.hr_index is not None %}
+                                            {{ row.hr_index }} / 100
+                                        {% else %}
+                                            <span class="text-muted">—</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-nowrap">
+                                        <a href="{% url 'accounts:user_profile_detail' row.mentor.id %}" class="btn btn-sm btn-outline-secondary" title="Profil">
+                                            <i class="fas fa-id-card"></i>
+                                        </a>
+                                        <a href="{% url 'chat:chat_mentor' row.mentor.id %}" class="btn btn-sm btn-info text-white" title="Czat">
+                                            <i class="fas fa-comments"></i>
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    {% if page_obj.paginator.num_pages > 1 %}
+                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-4">
+                        <small class="text-muted">
+                            Pokazano {{ page_obj.start_index }}–{{ page_obj.end_index }} z {{ page_obj.paginator.count }} mentorów
+                        </small>
+                        <nav aria-label="Paginacja rankingu mentorów">
+                            <ul class="pagination pagination-sm mb-0 flex-wrap">
+                                {% if page_obj.has_previous %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if querystring_no_page %}&{{ querystring_no_page }}{% endif %}">Poprzednia</a>
+                                </li>
+                                {% else %}
+                                <li class="page-item disabled"><span class="page-link">Poprzednia</span></li>
+                                {% endif %}
+                                {% if page_obj.has_next %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if querystring_no_page %}&{{ querystring_no_page }}{% endif %}">Następna</a>
+                                </li>
+                                {% else %}
+                                <li class="page-item disabled"><span class="page-link">Następna</span></li>
+                                {% endif %}
+                            </ul>
+                        </nav>
+                        <small class="text-muted">
+                            Strona {{ page_obj.number }} z {{ page_obj.paginator.num_pages }}
+                        </small>
+                    </div>
+                    {% endif %}
+                    {% else %}
+                    <div class="text-center py-5">
+                        <i class="fas fa-star fa-3x text-warning mb-3"></i>
+                        <h4>Brak mentorów w rankingu</h4>
+                        <p class="text-muted mb-0">Nie znaleziono użytkowników z rolą Mentor.</p>
+                    </div>
+                    {% endif %}
+
+                    <div class="mt-4">
+                        <a href="{% url 'accounts:logged' %}" class="btn btn-outline-secondary">
+                            <i class="fas fa-arrow-left me-1"></i>Powrót do panelu
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -16,6 +16,9 @@ venv/
 staticfiles/
 media/
 
+# Local ERD scratch output (committed copies live in DB Diagram/)
+erd_outputs/
+
 # VSCode / PyCharm
 .idea/
 .vscode/
@@ -25,3 +28,14 @@ media/
 *.egg
 *.manifest
 *.spec
+TODO_ranking.md
+TODO.md
+
+# Sphinx
+docs/_build/
+docs/**/.doctrees/
+
+# Tests / coverage
+htmlcov/
+.coverage
+coverage.xml

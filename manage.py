@@ -1,11 +1,16 @@
 #!/usr/bin/env python
-"""Django's command-line utility for administrative tasks."""
+"""Command-line entrypoint for Django management commands."""
+
 import os
 import sys
 
 
 def main():
-    """Run administrative tasks."""
+    """Parse ``sys.argv`` and delegate execution to Django's management utility.
+
+    Raises:
+        ImportError: When Django is not installed in the active environment.
+    """
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", "OnboAArrrd.settings")
     try:
         from django.core.management import execute_from_command_line

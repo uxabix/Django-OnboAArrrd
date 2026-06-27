@@ -1,3 +1,9 @@
+"""Django settings module for the OnboAArrrd project.
+
+Environment variables are loaded from ``.env`` via ``django-environ``. Database
+credentials and security flags must be provided for non-local deployments.
+"""
+
 from pathlib import Path
 import environ
 import os
@@ -32,6 +38,7 @@ INSTALLED_APPS = [
     "chat",
     "onboarding",
     "core",
+    "django_extensions",
 ]
 
 MIDDLEWARE = [
@@ -40,6 +47,7 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "accounts.middleware.ForceInitialPasswordChangeMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]

@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+
+{% block title %}{{ user_path.path.name }}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-10 offset-md-1">
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-primary text-white">
+                <h2 class="mb-0"><i class="fas fa-route me-2"></i>{{ user_path.path.name }}</h2>
+                <small>Widok ścieżki krok po kroku</small>
+            </div>
+            <div class="card-body">
+                <p class="text-muted mb-4">{{ user_path.path.description|default:"Brak opisu ścieżki." }}</p>
+
+                {% if ordered_tasks %}
+                    <div class="list-group list-group-numbered">
+                        {% for item in ordered_tasks %}
+                            <div class="list-group-item py-3">
+                                <div class="d-flex w-100 justify-content-between align-items-start">
+                                    <div class="me-3">
+                                        <div class="fw-bold mb-1">
+                                            {{ item.order }}. {{ item.task.title|default:"(bez tytułu)" }}
+                                        </div>
+                                        <div class="small text-muted mb-2">
+                                            {{ item.task.description|default:"Brak opisu zadania." }}
+                                        </div>
+                                        {% if item.user_task %}
+                                            <a href="{% url 'onboarding:user_task_detail' item.user_task.user_tasks_id %}" class="btn btn-sm btn-outline-primary">
+                                                Otwórz zadanie
+                                            </a>
+                                        {% endif %}
+                                    </div>
+                                    <div class="text-end">
+                                        {% if item.deadline %}
+                                            <div class="small">
+                                                <i class="far fa-calendar-alt me-1 text-muted"></i>
+                                                Deadline: <strong>{{ item.deadline|date:"d.m.Y" }}</strong>
+                                            </div>
+                                        {% else %}
+                                            <div class="small text-muted">Brak deadline</div>
+                                        {% endif %}
+
+                                        <div class="mt-2">
+                                            <span class="badge rounded-pill
+                                                {% if item.current_status == 'do zrobienia' %}bg-secondary
+                                                {% elif item.current_status == 'w trakcie' %}bg-primary
+                                                {% elif item.current_status == 'do weryfikacji' %}bg-warning text-dark
+                                                {% elif item.current_status == 'ukończone' %}bg-success
+                                                {% else %}bg-light text-dark border{% endif %}">
+                                                {{ item.current_status }}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="text-muted fst-italic">Ta ścieżka nie ma jeszcze zadań.</div>
+                {% endif %}
+
+                <div class="mt-4">
+                    <a href="{% url 'onboarding:user_competency_paths_with_tasks' %}" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left me-1"></i> Powrót do listy ścieżek
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
