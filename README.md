@@ -2,6 +2,50 @@
 
 An onboarding platform designed to help new employees integrate smoothly into a company, built with **Django**, **PostgreSQL**, and **Docker**.
 
+## Screenshots
+
+Run `docker compose up`, seed demo data (`python manage.py seed_demo`), then capture UI shots with Playwright:
+
+```bash
+pip install playwright
+python -m playwright install chromium
+python scripts/capture_screenshots.py
+```
+
+### Public pages
+
+| Landing page | Login |
+|:---:|:---:|
+| ![Home](docs/screenshots/home.png) | ![Login](docs/screenshots/login.png) |
+
+### Student
+
+| Dashboard | Tasks | Competency paths |
+|:---:|:---:|:---:|
+| ![Student dashboard](docs/screenshots/student-dashboard.png) | ![Student tasks](docs/screenshots/student-tasks.png) | ![Student paths](docs/screenshots/student-paths.png) |
+
+| Calendar | Profile | Chat |
+|:---:|:---:|:---:|
+| ![Student calendar](docs/screenshots/student-calendar.png) | ![Student profile](docs/screenshots/student-profile.png) | ![Student chat](docs/screenshots/student-chat.png) |
+
+### Mentor
+
+| Dashboard | Task management | Chat |
+|:---:|:---:|:---:|
+| ![Mentor dashboard](docs/screenshots/mentor-dashboard.png) | ![Mentor task management](docs/screenshots/mentor-task-management.png) | ![Mentor chat](docs/screenshots/mentor-chat.png) |
+
+### HR
+
+![HR dashboard](docs/screenshots/hr-dashboard.png)
+
+### Other
+
+| Mentor ranking |
+|:---:|
+| ![Mentor ranking](docs/screenshots/mentor-ranking.png) |
+
+Demo accounts are printed by `seed_demo` (see [Database Seeding Guide](#database-seeding-guide)).
+
 ## Database schema
 
 ![Database ERD](DB%20Diagram/erd.png)
